@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
-from app.models.enums import GameStatus
+from app.models.enums import GameStatus, PlayerStatus
 from app.models.game import Game
+from app.models.game_player import GamePlayer
 from app.repositories.base import BaseRepository
+
 
 
 class GameRepository(BaseRepository[Game]):
@@ -50,3 +52,28 @@ class GameRepository(BaseRepository[Game]):
         game.status = status
         await self.session.flush()
         return game
+
+    async def list_for_user(self, user_id: int) -> list[Game]:
+        """Return every non-cancelled game the user creates or actively plays in.
+
+        A game is included when the user is its creator *or* has a non-left
+        player row in it. Results are newest-first so the most relevant games
+        appear at the top of the "📂 بازی‌های من" list.
+        """
+        result = await self.session.execute(
+            select(Game)
+            .outerjoin(
+                GamePlayer,
+                (GamePlayer.game_id == Game.id)
+                & (GamePlayer.user_id == user_id)
+                & (GamePlayer.status != PlayerStatus.LEFT),
+            )
+            .where(
+                Game.status != GameStatus.CANCELLED,
+                or_(Game.creator_id == user_id, GamePlayer.id.is_not(None)),
+            )
+            .order_by(Game.id.desc())
+            .distinct()
+        )
+        return list(result.scalars().all())
+

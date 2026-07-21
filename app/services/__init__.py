@@ -15,15 +15,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories import RepositoryProvider
 from app.services.assignment_service import AssignmentService
 from app.services.composition_service import RoleCompositionService
+from app.services.game_management_service import GameManagementService
 from app.services.game_service import GameService
 
 from app.services.lobby_service import LobbyService
 from app.services.lobby_state_service import LobbyStateService
 from app.services.player_service import PlayerService
 from app.services.randomizer_service import RandomizerService
+from app.services.role_info_service import RoleInfoService
 from app.services.role_service import RoleService
 from app.services.roster_service import RosterService
 from app.services.turn_manager_service import TurnManagerService
+from app.services.user_games_service import UserGamesService
+
 
 
 
@@ -82,17 +86,33 @@ class ServiceProvider:
             self.lobby_state,
         )
 
+    @cached_property
+    def role_info(self) -> RoleInfoService:
+        return RoleInfoService()
+
+    @cached_property
+    def user_games(self) -> UserGamesService:
+        return UserGamesService(self._repos)
+
+    @cached_property
+    def game_management(self) -> GameManagementService:
+        return GameManagementService(self._repos)
+
 
 __all__ = [
     "ServiceProvider",
     "AssignmentService",
+    "GameManagementService",
     "GameService",
     "LobbyService",
     "LobbyStateService",
     "PlayerService",
     "RandomizerService",
+    "RoleInfoService",
     "RoleService",
     "RosterService",
     "TurnManagerService",
+    "UserGamesService",
 ]
+
 

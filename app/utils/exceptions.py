@@ -49,6 +49,16 @@ class NotGameCreatorError(DomainError):
     message_fa = "فقط سازنده بازی می‌تواند این کار را انجام دهد."
 
 
+class GameDeletionNotAllowedError(DomainError):
+    """Raised when trying to delete a game that is currently in progress."""
+
+    message_fa = (
+        "بازی در حال اجرا را نمی‌توان حذف کرد.\n"
+        "ابتدا بازی را پایان دهید، سپس آن را حذف کنید."
+    )
+
+
+
 # --- Roles / setup ----------------------------------------------------------
 
 

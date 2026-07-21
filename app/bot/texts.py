@@ -12,9 +12,12 @@ from app.schemas.game import (
     PlayerRoleDTO,
     TeamCompositionDTO,
     TurnStateDTO,
+    UserGameDetailDTO,
+    UserGameSummaryDTO,
 )
 from app.utils.codes import to_persian_digits
 from app.utils.role_catalog import TEAM_LABELS_FA
+
 
 
 
@@ -228,4 +231,93 @@ def start_game_summary(comp: TeamCompositionDTO) -> str:
 def roles_catalog(items: Sequence[GamePlayerDTO]) -> str:  # pragma: no cover
     """Deprecated placeholder kept for API symmetry (unused)."""
     return ""
+
+
+# --- Role encyclopaedia ("📖 توضیح نقش‌ها") ----------------------------------
+
+ROLE_INFO_INTRO = (
+    "📖 <b>توضیح نقش‌ها</b>\n\n"
+    "برای مطالعهٔ توضیح کامل هر نقش، آن را از فهرست زیر انتخاب کنید. "
+    "در هر صفحه می‌توانید با دکمه‌های «نقش قبلی/بعدی» بین نقش‌ها جابه‌جا شوید."
+)
+
+
+def role_info_page(*, index: int, total: int, details: str) -> str:
+    """Wrap a single role's rendered details with a position indicator."""
+    position = f"{to_persian_digits(index + 1)} از {to_persian_digits(total)}"
+    return f"{details}\n\n🔢 نقش {position}"
+
+
+# --- "📂 بازی‌های من" ---------------------------------------------------------
+
+MY_GAMES_EMPTY = (
+    "📂 <b>بازی‌های من</b>\n\n"
+    "شما در هیچ بازی فعالی حضور ندارید.\n"
+    "برای ساخت بازی از «🎲 ساخت بازی» و برای ورود از «🎮 ورود به بازی» استفاده کنید."
+)
+
+MY_GAMES_INTRO = (
+    "📂 <b>بازی‌های من</b>\n\n"
+    "لیست بازی‌هایی که ساخته‌اید یا در آن‌ها حضور دارید. برای مدیریت هر بازی روی "
+    "آن بزنید. (نشان 👑 یعنی سازندهٔ آن بازی شما هستید.)"
+)
+
+
+def _status_label(detail: UserGameDetailDTO | UserGameSummaryDTO) -> str:
+    # Local import avoids a keyboards<->texts import cycle at module load.
+    from app.bot.keyboards.info import GAME_STATUS_LABELS_FA
+
+    return GAME_STATUS_LABELS_FA.get(detail.status, detail.status.value)
+
+
+def my_game_detail(detail: UserGameDetailDTO) -> str:
+    """Full detail screen for one of the user's games.
+
+    Shows lobby progress and the caller's own seat/role status. When the
+    assignment phase is under way, it also shows *whose turn* it is by seat
+    number and name — never anyone's role.
+    """
+    role_marker = "👑 سازنده" if detail.is_creator else "🙋 بازیکن"
+    lines = [
+        "📂 <b>جزئیات بازی</b>\n",
+        f"🔑 کد: <code>{detail.code}</code>",
+        f"📌 وضعیت: {_status_label(detail)}",
+        f"🎭 نقش شما: {role_marker}",
+        f"👥 واردشده: {to_persian_digits(detail.joined_count)} از "
+        f"{to_persian_digits(detail.player_count)}",
+        f"🎯 نقش‌گرفته: {to_persian_digits(detail.assigned_count)} از "
+        f"{to_persian_digits(detail.player_count)}",
+    ]
+    if detail.my_number is not None:
+        lines.append(f"🔢 شمارهٔ شما: {to_persian_digits(detail.my_number)}")
+    lines.append(
+        "✅ نقش خود را دریافت کرده‌اید."
+        if detail.has_role
+        else "⏳ هنوز نقشی دریافت نکرده‌اید."
+    )
+    if detail.is_my_turn:
+        lines.append("\n🔔 <b>اکنون نوبت شماست!</b>")
+    elif detail.current_turn_number is not None:
+        who = detail.current_turn_name or "—"
+        lines.append(
+            f"\n⏳ نوبت فعلی: شمارهٔ "
+            f"{to_persian_digits(detail.current_turn_number)} ({who})"
+        )
+    return "\n".join(lines)
+
+
+def game_deleted(code: str) -> str:
+    return (
+        f"🗑 بازی با کد <code>{code}</code> حذف شد.\n"
+        "تمام بازیکنان، نقش‌ها و اطلاعات مرتبط آزاد شدند."
+    )
+
+
+def confirm_delete_game(detail: UserGameDetailDTO) -> str:
+    return (
+        "⚠️ <b>حذف بازی</b>\n\n"
+        f"آیا از حذف بازی با کد <code>{detail.code}</code> مطمئن هستید؟\n"
+        "این عملیات غیرقابل بازگشت است و تمام بازیکنان و نقش‌ها حذف می‌شوند."
+    )
+
 

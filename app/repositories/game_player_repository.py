@@ -71,10 +71,12 @@ class GamePlayerRepository(BaseRepository[GamePlayer]):
                 ),
                 GamePlayer.join_order.is_not(None),
             )
+            .options(selectinload(GamePlayer.user))
             .order_by(GamePlayer.join_order.asc())
             .limit(1)
         )
         return result.scalar_one_or_none()
+
 
     async def list_active_ordered(self, game_id: int) -> list[GamePlayer]:
         """Return active players ordered by their join order (FIFO)."""

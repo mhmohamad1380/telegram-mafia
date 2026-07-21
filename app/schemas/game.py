@@ -125,7 +125,55 @@ class AssignmentResultDTO(BaseModel):
     all_assigned: bool = False
 
 
+class UserGameSummaryDTO(BaseModel):
+    """One entry in a user's "📂 بازی‌های من" list.
+
+    Summarises a game the user participates in (as creator or plain member),
+    including their own progress (seat number, whether they got a role) so the
+    list screen can be rendered without any further lookups.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    game_id: int
+    code: str
+    status: GameStatus
+    player_count: int
+    joined_count: int
+    is_creator: bool
+    my_number: int | None = None
+    has_role: bool = False
+
+
+class UserGameDetailDTO(BaseModel):
+    """Full detail for a single game on the "📂 بازی‌های من" detail screen.
+
+    Extends the summary with lobby progress and the current turn holder (when
+    the assignment phase is underway) so a member can see whose turn it is
+    without seeing anyone's role. Role names are never included here.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    game_id: int
+    code: str
+    status: GameStatus
+    player_count: int
+    joined_count: int
+    assigned_count: int
+    is_creator: bool
+    my_number: int | None = None
+    has_role: bool = False
+    # Turn info, populated once the lobby is full and assignment has begun.
+    current_turn_number: int | None = None
+    current_turn_name: str | None = None
+    is_my_turn: bool = False
+    # True when the game can be deleted by its creator (i.e. not IN_PROGRESS).
+    can_delete: bool = False
+
+
 class TeamCompositionDTO(BaseModel):
+
     """Per-team head counts for a game's role composition."""
 
     model_config = ConfigDict(frozen=True)

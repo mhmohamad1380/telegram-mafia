@@ -14,11 +14,13 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 # ``handlers/common.py``) and the keyboard builder never drift apart.
 BTN_CREATE_GAME = "🎲 ساخت بازی"
 BTN_JOIN_GAME = "🎮 ورود به بازی"
+BTN_ROLE_INFO = "📖 توضیح نقش‌ها"
+BTN_MY_GAMES = "📂 بازی‌های من"
 BTN_CANCEL = "❌ لغو عملیات"
 
 #: All main-menu captions, for quick membership checks in handlers.
 MAIN_MENU_BUTTONS: frozenset[str] = frozenset(
-    {BTN_CREATE_GAME, BTN_JOIN_GAME, BTN_CANCEL}
+    {BTN_CREATE_GAME, BTN_JOIN_GAME, BTN_ROLE_INFO, BTN_MY_GAMES, BTN_CANCEL}
 )
 
 
@@ -31,8 +33,12 @@ def build_main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text=BTN_CREATE_GAME))
     builder.add(KeyboardButton(text=BTN_JOIN_GAME))
+    builder.add(KeyboardButton(text=BTN_ROLE_INFO))
+    builder.add(KeyboardButton(text=BTN_MY_GAMES))
     builder.add(KeyboardButton(text=BTN_CANCEL))
-    builder.adjust(2, 1)  # [create | join] then [cancel]
+    # [create | join] then [roles | my games] then [cancel]
+    builder.adjust(2, 2, 1)
+
     return builder.as_markup(
         resize_keyboard=True,
         is_persistent=True,

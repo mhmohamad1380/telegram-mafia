@@ -18,28 +18,50 @@ logger = get_logger(__name__)
 
 
 async def seed_roles(session: AsyncSession) -> int:
-    """Ensure every catalog role exists in the DB. Returns count inserted."""
+    """Ensure every catalog role exists and its metadata is up to date.
+
+    Inserts missing roles and refreshes mutable metadata (team, Persian name,
+    description) for existing ones so catalog corrections — e.g. moving a role
+    to the correct team — propagate to an already-seeded database on the next
+    startup. Returns the number of rows inserted.
+    """
     existing = {
-        role.code
+        role.code: role
         for role in (await session.execute(select(Role))).scalars().all()
     }
 
     inserted = 0
+    updated = 0
     for definition in ROLE_CATALOG:
-        if definition.code in existing:
-            continue
-        session.add(
-            Role(
-                code=definition.code,
-                name_fa=definition.name_fa,
-                team=definition.team,
-                description=definition.description,
-                is_active=True,
+        role = existing.get(definition.code)
+        if role is None:
+            session.add(
+                Role(
+                    code=definition.code,
+                    name_fa=definition.name_fa,
+                    team=definition.team,
+                    description=definition.description,
+                    is_active=True,
+                )
             )
-        )
-        inserted += 1
+            inserted += 1
+            continue
 
-    if inserted:
+        # Sync mutable metadata in place if the catalog has diverged from the DB.
+        if (
+            role.name_fa != definition.name_fa
+            or role.team != definition.team
+            or role.description != definition.description
+        ):
+            role.name_fa = definition.name_fa
+            role.team = definition.team
+            role.description = definition.description
+            updated += 1
+
+    if inserted or updated:
         await session.flush()
-    logger.info("roles_seeded", inserted=inserted, total=len(ROLE_CATALOG))
+    logger.info(
+        "roles_seeded", inserted=inserted, updated=updated, total=len(ROLE_CATALOG)
+    )
     return inserted
+
