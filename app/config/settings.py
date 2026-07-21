@@ -10,8 +10,9 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 
 class Settings(BaseSettings):
@@ -35,9 +36,25 @@ class Settings(BaseSettings):
         description=(
             "Optional proxy URL for the Telegram HTTP session, e.g. "
             "'socks5://127.0.0.1:10808' or 'http://127.0.0.1:8080'. Useful where "
-            "Telegram is blocked. Requires 'aiohttp-socks' for socks schemes."
+            "Telegram is blocked. Requires 'aiohttp-socks' for socks schemes. "
+            "Leave unset/empty to connect directly with no proxy."
         ),
     )
+
+    @field_validator("bot_proxy", "redis_password", mode="before")
+    @classmethod
+    def _empty_str_to_none(cls, value: object) -> object:
+        """Treat empty/whitespace-only strings as unset (``None``).
+
+        Docker Compose expands an unset ``${BOT_PROXY:-}`` to an empty string
+        rather than leaving it undefined, which would otherwise be interpreted
+        as a (bogus) proxy URL. Normalizing to ``None`` keeps the proxy strictly
+        opt-in.
+        """
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
 
 
     # --- PostgreSQL ---
@@ -46,6 +63,12 @@ class Settings(BaseSettings):
     postgres_user: str = Field(default="mafia")
     postgres_password: str = Field(default="mafia")
     postgres_db: str = Field(default="mafia")
+    # Connection-pool sizing. Kept small by default so the app is friendly to
+    # memory-constrained hosts (each PostgreSQL connection is a separate backend
+    # process). Raise these for high-traffic deployments with more RAM.
+    db_pool_size: int = Field(default=5, ge=1)
+    db_max_overflow: int = Field(default=5, ge=0)
+
 
     # --- Redis ---
     redis_host: str = Field(default="localhost")

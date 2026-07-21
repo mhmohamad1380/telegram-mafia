@@ -40,7 +40,12 @@ async def main() -> None:
     logger.info("starting_bot", environment=settings.environment)
 
     # --- Database ---
-    database = init_database(settings.database_url)
+    database = init_database(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+    )
+
     await _seed(database.session_factory)
 
     # --- Redis FSM storage ---

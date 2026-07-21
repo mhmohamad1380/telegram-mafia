@@ -21,14 +21,29 @@ from sqlalchemy.ext.asyncio import (
 class Database:
     """Owns the async engine and session factory for the application's lifetime."""
 
-    def __init__(self, url: str, *, echo: bool = False) -> None:
+    def __init__(
+        self,
+        url: str,
+        *,
+        echo: bool = False,
+        pool_size: int = 5,
+        max_overflow: int = 5,
+        pool_recycle: int = 1800,
+    ) -> None:
+        # Keep the pool intentionally small: on memory-constrained hosts (e.g.
+        # a 512 MB VPS) every PostgreSQL connection is a separate backend
+        # process costing several MB of RAM. A Telegram bot's traffic is bursty
+        # and low-concurrency, so a handful of connections is plenty. These are
+        # configurable via settings for larger deployments.
         self._engine: AsyncEngine = create_async_engine(
             url,
             echo=echo,
             pool_pre_ping=True,
-            pool_size=10,
-            max_overflow=20,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_recycle=pool_recycle,
         )
+
         self._session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
             bind=self._engine,
             class_=AsyncSession,
@@ -72,12 +87,21 @@ class Database:
 _database: Database | None = None
 
 
-def init_database(url: str, *, echo: bool = False) -> Database:
+def init_database(
+    url: str,
+    *,
+    echo: bool = False,
+    pool_size: int = 5,
+    max_overflow: int = 5,
+) -> Database:
     """Initialize and cache the global :class:`Database` singleton."""
     global _database
     if _database is None:
-        _database = Database(url, echo=echo)
+        _database = Database(
+            url, echo=echo, pool_size=pool_size, max_overflow=max_overflow
+        )
     return _database
+
 
 
 def get_engine() -> AsyncEngine:
