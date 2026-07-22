@@ -35,11 +35,19 @@ class GameService:
 
     # --- Creation -----------------------------------------------------------
 
-    async def create_game(self, *, creator_telegram_id: int, player_count: int) -> GameDTO:
+    async def create_game(
+        self,
+        *,
+        creator_telegram_id: int,
+        player_count: int,
+        scenario_code: str = "classic",
+    ) -> GameDTO:
         """Create a new game in ``CREATING`` state with a unique join code.
 
         The creator must already exist as a user (ensured by the auth
         middleware). ``player_count`` is validated against sane bounds.
+        ``scenario_code`` records the chosen game mode (see the scenario
+        catalog); scenario-specific validation happens in the scenario layer.
         """
         if not MIN_PLAYERS <= player_count <= MAX_PLAYERS:
             raise InvalidPlayerCountError(
@@ -51,6 +59,7 @@ class GameService:
             code=code,
             creator_id=creator_telegram_id,
             player_count=player_count,
+            scenario_code=scenario_code,
             status=GameStatus.CREATING,
         )
         await self._repos.games.add(game)
@@ -58,10 +67,21 @@ class GameService:
             game_id=game.id,
             event_type=GameEventType.GAME_CREATED,
             user_id=creator_telegram_id,
-            payload={"player_count": player_count, "code": code},
+            payload={
+                "player_count": player_count,
+                "code": code,
+                "scenario_code": scenario_code,
+            },
         )
-        logger.info("game_created", game_id=game.id, code=code, player_count=player_count)
+        logger.info(
+            "game_created",
+            game_id=game.id,
+            code=code,
+            player_count=player_count,
+            scenario_code=scenario_code,
+        )
         return self._to_dto(game)
+
 
     async def _generate_unique_code(self) -> str:
         """Generate a 6-digit code, retrying on the (rare) collision."""
@@ -80,33 +100,50 @@ class GameService:
         game_id: int,
         creator_telegram_id: int,
         role_quantities: Mapping[int, int],
+        custom_role_quantities: Mapping[int, int] | None = None,
     ) -> GameDTO:
         """Persist the selected roles for a game and mark it ready for players.
 
         Args:
             game_id: Target game id.
             creator_telegram_id: Must match the game's creator.
-            role_quantities: Mapping of ``role_id -> quantity``. The summed
-                quantities must equal the game's ``player_count``.
+            role_quantities: Mapping of catalog ``role_id -> quantity``.
+            custom_role_quantities: Optional mapping of the creator's own
+                ``custom_role_id -> quantity``. Each such role must belong to the
+                creator (ownership is re-verified defensively). The combined
+                catalog + custom quantities must equal ``player_count``.
 
         The game transitions ``CREATING -> WAITING_PLAYERS``.
         """
+        custom_quantities = dict(custom_role_quantities or {})
         game = await self._get_owned_game(game_id, creator_telegram_id)
         if game.status != GameStatus.CREATING:
             raise InvalidGameStateError("نقش‌ها فقط در مرحله ساخت قابل تنظیم هستند.")
 
-        total = sum(role_quantities.values())
+        total = sum(role_quantities.values()) + sum(custom_quantities.values())
         if total != game.player_count:
             raise RoleSelectionMismatchError(
                 "تعداد نقش‌های انتخاب‌شده باید دقیقاً برابر تعداد بازیکنان باشد "
                 f"({total} از {game.player_count})."
             )
 
-        # Validate that all referenced roles exist and are active.
+        # Validate that all referenced catalog roles exist and are active.
         role_ids = [rid for rid, qty in role_quantities.items() if qty > 0]
         roles = await self._repos.roles.get_by_ids(role_ids)
         if len(roles) != len(role_ids):
             raise InvalidGameStateError("یک یا چند نقش انتخاب‌شده نامعتبر است.")
+
+        # Validate that all referenced custom roles belong to the creator.
+        for custom_role_id, quantity in custom_quantities.items():
+            if quantity <= 0:
+                continue
+            owned = await self._repos.custom_roles.get_owned(
+                custom_role_id=custom_role_id, owner_id=creator_telegram_id
+            )
+            if owned is None:
+                raise InvalidGameStateError(
+                    "یک یا چند «نقش من» نامعتبر است یا متعلق به شما نیست."
+                )
 
         # Replace any prior configuration, then insert fresh rows.
         for role_id, quantity in role_quantities.items():
@@ -120,6 +157,17 @@ class GameService:
                     remaining=quantity,
                 )
             )
+        for custom_role_id, quantity in custom_quantities.items():
+            if quantity <= 0:
+                continue
+            self._repos.session.add(
+                GameRole(
+                    game_id=game.id,
+                    custom_role_id=custom_role_id,
+                    quantity=quantity,
+                    remaining=quantity,
+                )
+            )
         await self._repos.session.flush()
 
         game.status = GameStatus.WAITING_PLAYERS
@@ -128,10 +176,14 @@ class GameService:
             game_id=game.id,
             event_type=GameEventType.ROLES_CONFIGURED,
             user_id=creator_telegram_id,
-            payload={"role_quantities": dict(role_quantities)},
+            payload={
+                "role_quantities": dict(role_quantities),
+                "custom_role_quantities": custom_quantities,
+            },
         )
         logger.info("roles_configured", game_id=game.id, total_roles=total)
         return self._to_dto(game)
+
 
     # --- Lifecycle transitions ---------------------------------------------
 

@@ -43,7 +43,14 @@ class Game(Base, IntPKMixin, TimestampMixin):
         nullable=False,
     )
     player_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Scenario (game mode) code, e.g. "classic" / "capo". References the
+    # data-driven scenario catalog rather than a DB table so scenarios stay
+    # purely code-defined. Defaults to the classic scenario.
+    scenario_code: Mapped[str] = mapped_column(
+        String(32), default="classic", server_default="classic", nullable=False
+    )
     status: Mapped[GameStatus] = mapped_column(
+
         Enum(GameStatus, name="game_status", native_enum=True),
         default=GameStatus.CREATING,
         index=True,

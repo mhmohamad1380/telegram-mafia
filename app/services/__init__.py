@@ -27,7 +27,9 @@ from app.services.randomizer_service import RandomizerService
 from app.services.role_info_service import RoleInfoService
 from app.services.role_service import RoleService
 from app.services.roster_service import RosterService
+from app.services.scenario_service import ScenarioService
 from app.services.turn_manager_service import TurnManagerService
+
 from app.services.user_games_service import UserGamesService
 
 
@@ -104,6 +106,10 @@ class ServiceProvider:
     def custom_roles(self) -> CustomRoleService:
         return CustomRoleService(self._repos)
 
+    @cached_property
+    def scenarios(self) -> ScenarioService:
+        return ScenarioService(self._repos)
+
 
 
 __all__ = [
@@ -120,8 +126,10 @@ __all__ = [
     "RoleInfoService",
     "RoleService",
     "RosterService",
+    "ScenarioService",
     "TurnManagerService",
     "UserGamesService",
 ]
+
 
 

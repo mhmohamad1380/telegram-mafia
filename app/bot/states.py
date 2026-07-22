@@ -8,10 +8,12 @@ from aiogram.fsm.state import State, StatesGroup
 class CreateGameStates(StatesGroup):
     """States for the game-creation wizard (creator)."""
 
+    choose_scenario = State()      # Picking the scenario (game mode)
     choose_player_count = State()  # Awaiting the number of players
     choose_roles = State()         # Selecting roles via inline keyboard
     confirm_summary = State()      # Reviewing the auto-completed composition
     waiting_players = State()      # Roles configured; lobby open
+
 
 
 

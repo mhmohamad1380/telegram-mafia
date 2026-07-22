@@ -59,10 +59,20 @@ class GameDeletionNotAllowedError(DomainError):
 
 
 
+# --- Scenarios --------------------------------------------------------------
+
+
+class ScenarioNotFoundError(DomainError):
+    """Raised when a scenario code/index does not match any known scenario."""
+
+    message_fa = "سناریوی موردنظر پیدا نشد."
+
+
 # --- Roles / setup ----------------------------------------------------------
 
 
 class InvalidPlayerCountError(DomainError):
+
     message_fa = "تعداد بازیکنان نامعتبر است."
 
 

@@ -20,9 +20,10 @@ from app.bot.callbacks import (
     RoleSetupActionCB,
     RoleToggleCB,
 )
-from app.schemas.game import RoleCatalogItemDTO
+from app.schemas.game import CustomRoleDTO, RoleCatalogItemDTO
 from app.utils.role_catalog import TEAM_LABELS_FA
 from app.utils.codes import to_persian_digits
+
 
 # Suggested quick-pick player counts shown as buttons.
 SUGGESTED_PLAYER_COUNTS: tuple[int, ...] = (8, 10, 12, 15, 18)
@@ -47,14 +48,23 @@ def build_role_selection_keyboard(
     selected_ids: Iterable[int],
     selected_total: int,
     target_count: int,
+    custom_roles: Sequence[CustomRoleDTO] = (),
+    selected_custom_ids: Iterable[int] = (),
 ) -> InlineKeyboardMarkup:
     """Build the role selection grid grouped by team.
 
     Selected roles are prefixed with ✅, unselected with ❌. A footer shows the
     running total and a confirm/cancel row.
+
+    The creator's own custom roles ("نقش‌های من") are appended as an extra,
+    always-selectable section so they can be mixed into any flexible scenario.
+    Their callbacks carry ``is_custom=True`` because catalog and custom roles use
+    independent id spaces.
     """
     selected = set(selected_ids)
+    selected_custom = set(selected_custom_ids)
     builder = InlineKeyboardBuilder()
+
 
     # Group roles by team for readability, preserving catalog order.
     for team, label in TEAM_LABELS_FA.items():
@@ -94,8 +104,32 @@ def build_role_selection_keyboard(
         for i in range(0, len(row_buttons), 2):
             builder.row(*row_buttons[i : i + 2])
 
+    # Creator's own custom roles — always selectable regardless of scenario.
+    if custom_roles:
+        builder.row(
+            InlineKeyboardButton(
+                text="— 🛠 نقش‌های من —",
+                callback_data=RoleSetupActionCB(
+                    game_id=game_id, action="noop"
+                ).pack(),
+            )
+        )
+        custom_buttons: list[InlineKeyboardButton] = []
+        for crole in custom_roles:
+            mark = "✅" if crole.id in selected_custom else "❌"
+            custom_buttons.append(
+                InlineKeyboardButton(
+                    text=f"{mark} {crole.name_fa}",
+                    callback_data=RoleToggleCB(
+                        game_id=game_id, role_id=crole.id, is_custom=True
+                    ).pack(),
+                )
+            )
+        for i in range(0, len(custom_buttons), 2):
+            builder.row(*custom_buttons[i : i + 2])
 
     # Footer: running counter.
+
     counter_text = (
         f"انتخاب‌شده: {to_persian_digits(selected_total)} از "
         f"{to_persian_digits(target_count)}"

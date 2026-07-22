@@ -15,6 +15,7 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 BTN_CREATE_GAME = "🎲 ساخت بازی"
 BTN_JOIN_GAME = "🎮 ورود به بازی"
 BTN_ROLE_INFO = "📖 توضیح نقش‌ها"
+BTN_SCENARIOS = "📚 سناریوها"
 BTN_MY_GAMES = "📂 بازی‌های من"
 BTN_CUSTOM_ROLES = "🛠 نقش‌های من"
 BTN_CANCEL = "❌ لغو عملیات"
@@ -25,11 +26,13 @@ MAIN_MENU_BUTTONS: frozenset[str] = frozenset(
         BTN_CREATE_GAME,
         BTN_JOIN_GAME,
         BTN_ROLE_INFO,
+        BTN_SCENARIOS,
         BTN_MY_GAMES,
         BTN_CUSTOM_ROLES,
         BTN_CANCEL,
     }
 )
+
 
 
 
@@ -43,11 +46,13 @@ def build_main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder.add(KeyboardButton(text=BTN_CREATE_GAME))
     builder.add(KeyboardButton(text=BTN_JOIN_GAME))
     builder.add(KeyboardButton(text=BTN_ROLE_INFO))
+    builder.add(KeyboardButton(text=BTN_SCENARIOS))
     builder.add(KeyboardButton(text=BTN_MY_GAMES))
     builder.add(KeyboardButton(text=BTN_CUSTOM_ROLES))
     builder.add(KeyboardButton(text=BTN_CANCEL))
-    # [create | join] then [roles | my games] then [custom roles | cancel]
-    builder.adjust(2, 2, 2)
+    # [create | join] [roles | scenarios] [my games | custom roles] [cancel]
+    builder.adjust(2, 2, 2, 1)
+
 
 
     return builder.as_markup(

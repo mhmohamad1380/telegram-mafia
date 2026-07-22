@@ -19,6 +19,8 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
+
 
 # revision identifiers, used by Alembic.
 revision: str = "0004_custom_roles"
@@ -29,9 +31,12 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     # --- custom_roles table -------------------------------------------------
-    # Reuse the existing native ``role_team`` enum (already created in 0001);
-    # create_type=False stops Alembic from trying to re-CREATE the type.
-    role_team = sa.Enum(
+    # Reuse the existing native ``role_team`` enum (already created in 0001 and
+    # extended in 0003). ``postgresql.ENUM(create_type=False)`` binds the column
+    # to that existing type WITHOUT emitting a second ``CREATE TYPE`` — unlike
+    # ``sa.Enum(create_type=False)``, whose flag the dialect ignores during
+    # ``create_table`` (it would raise ``DuplicateObjectError``).
+    role_team = postgresql.ENUM(
         "CITIZEN",
         "MAFIA",
         "INDEPENDENT",
@@ -39,6 +44,7 @@ def upgrade() -> None:
         name="role_team",
         create_type=False,
     )
+
     op.create_table(
         "custom_roles",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),

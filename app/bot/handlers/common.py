@@ -67,9 +67,12 @@ async def on_menu_cancel(message: Message, state: FSMContext) -> None:
 
 
 @router.message(F.text == BTN_CREATE_GAME)
-async def on_menu_create(message: Message, state: FSMContext) -> None:
+async def on_menu_create(
+    message: Message, state: FSMContext, services: ServiceProvider
+) -> None:
     """Main-menu «ساخت بازی» button — start the create-game wizard."""
-    await start_create_game(message, state)
+    await start_create_game(message, state, services)
+
 
 
 @router.message(F.text == BTN_JOIN_GAME)

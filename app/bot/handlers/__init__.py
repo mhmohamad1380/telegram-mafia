@@ -16,7 +16,9 @@ from app.bot.handlers import (
     game_control,
     info,
     join_game,
+    scenario_info,
 )
+
 
 
 
@@ -25,7 +27,9 @@ def get_main_router() -> Router:
     router = Router(name="main")
     router.include_router(common.router)
     router.include_router(info.router)
+    router.include_router(scenario_info.router)
     router.include_router(custom_role.router)
+
 
     router.include_router(create_game.router)
     router.include_router(join_game.router)

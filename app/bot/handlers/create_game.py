@@ -1,4 +1,21 @@
-"""Create-game wizard: player count -> role selection -> game code."""
+"""Create-game wizard: scenario → player count → role selection → game code.
+
+The wizard is scenario-driven end to end:
+
+1. **Scenario** — the creator picks a game mode (:class:`ScenarioPickCB`); the
+   scenario's overview is shown for confirmation.
+2. **Player count** — quick-pick buttons are derived from the scenario's
+   allowed/suggested counts; a custom count is also accepted and validated
+   against the scenario bounds.
+3. **Roles** — *flexible* scenarios show only the roles that scenario allows;
+   *fixed* scenarios (e.g. Capo) skip selection entirely and jump to the summary
+   with the prescribed composition.
+4. **Summary → finalize** — the resolved ``role_id → quantity`` mapping is
+   persisted and the join code revealed.
+
+All scenario rules live behind :class:`ScenarioService`; this handler only
+orchestrates the conversation.
+"""
 
 from __future__ import annotations
 
@@ -8,15 +25,24 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.bot import texts
-from app.bot.callbacks import PlayerCountCB, RoleSetupActionCB, RoleToggleCB
+from app.bot.callbacks import (
+    PlayerCountCB,
+    RoleSetupActionCB,
+    RoleToggleCB,
+    ScenarioPickCB,
+)
 from app.bot.keyboards import (
     build_composition_summary_keyboard,
-    build_player_count_keyboard,
     build_role_selection_keyboard,
+    build_scenario_count_keyboard,
+    build_scenario_picker_keyboard,
 )
 
 from app.bot.states import CreateGameStates
 from app.config.logging import get_logger
+from app.models.enums import RoleCode
+from app.scenarios import format_scenario_composition, format_scenario_overview
+from app.schemas.game import CompositionResultDTO
 from app.services import ServiceProvider
 from app.services.game_service import MAX_PLAYERS, MIN_PLAYERS
 from app.utils.codes import to_persian_digits
@@ -26,33 +52,69 @@ logger = get_logger(__name__)
 router = Router(name="create_game")
 
 
-# --- Step 1: /create_game -> ask player count -------------------------------
+# --- Step 1: /create_game -> choose scenario --------------------------------
 
 
-async def start_create_game(message: Message, state: FSMContext) -> None:
-    """Start the creation wizard by asking for the player count.
+async def start_create_game(message: Message, state: FSMContext, services: ServiceProvider) -> None:
+    """Start the creation wizard by asking the creator to pick a scenario.
 
     Shared entry point used by both the ``/create_game`` command and the
     persistent "🎲 ساخت بازی" menu button so their behaviour never diverges.
     """
     await state.clear()
-    await state.set_state(CreateGameStates.choose_player_count)
+    await state.set_state(CreateGameStates.choose_scenario)
+    scenarios = services.scenarios.list_scenarios()
     await message.answer(
-        texts.ASK_PLAYER_COUNT,
-        reply_markup=build_player_count_keyboard(),
+        texts.ASK_SCENARIO,
+        reply_markup=build_scenario_picker_keyboard(scenarios),
     )
 
 
 @router.message(Command("create_game"))
-async def cmd_create_game(message: Message, state: FSMContext) -> None:
+async def cmd_create_game(
+    message: Message, state: FSMContext, services: ServiceProvider
+) -> None:
     """``/create_game`` command handler."""
-    await start_create_game(message, state)
+    await start_create_game(message, state, services)
 
 
+@router.callback_query(CreateGameStates.choose_scenario, ScenarioPickCB.filter())
+async def on_scenario_pick(
+    callback: CallbackQuery,
+    callback_data: ScenarioPickCB,
+    state: FSMContext,
+    services: ServiceProvider,
+) -> None:
+    """Handle a scenario choice: show its overview and player-count options."""
+    if callback_data.code == "__back__":
+        scenarios = services.scenarios.list_scenarios()
+        await callback.message.edit_text(  # type: ignore[union-attr]
+            texts.ASK_SCENARIO,
+            reply_markup=build_scenario_picker_keyboard(scenarios),
+        )
+        await callback.answer()
+        return
 
-@router.callback_query(
-    CreateGameStates.choose_player_count, PlayerCountCB.filter()
-)
+    try:
+        scenario = services.scenarios.get_scenario(callback_data.code)
+    except DomainError as exc:
+        await callback.answer(exc.message_fa, show_alert=True)
+        return
+
+    await state.set_state(CreateGameStates.choose_player_count)
+    await state.update_data(scenario_code=scenario.code)
+    overview = format_scenario_overview(scenario)
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        f"{overview}\n\n{texts.ASK_PLAYER_COUNT}",
+        reply_markup=build_scenario_count_keyboard(scenario),
+    )
+    await callback.answer()
+
+
+# --- Step 2: player count ---------------------------------------------------
+
+
+@router.callback_query(CreateGameStates.choose_player_count, PlayerCountCB.filter())
 async def on_player_count_button(
     callback: CallbackQuery,
     callback_data: PlayerCountCB,
@@ -60,14 +122,15 @@ async def on_player_count_button(
     services: ServiceProvider,
 ) -> None:
     """Handle a quick-pick player count button."""
-    await _begin_role_selection(
+    await _begin_after_count(
         count=callback_data.count,
         state=state,
         services=services,
         user_id=callback.from_user.id,
         message=callback.message,  # type: ignore[arg-type]
+        edit=True,
+        callback=callback,
     )
-    await callback.answer()
 
 
 @router.message(CreateGameStates.choose_player_count)
@@ -76,7 +139,6 @@ async def on_player_count_text(
 ) -> None:
     """Handle a custom, typed player count."""
     raw = (message.text or "").strip()
-    # Accept both ASCII and Persian digits.
     normalized = raw.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
     if not normalized.isdigit():
         await message.answer("لطفاً یک عدد معتبر ارسال کنید.")
@@ -88,53 +150,103 @@ async def on_player_count_text(
             f"{to_persian_digits(MAX_PLAYERS)} باشد."
         )
         return
-    await _begin_role_selection(
+    await _begin_after_count(
         count=count,
         state=state,
         services=services,
         user_id=message.from_user.id,  # type: ignore[union-attr]
         message=message,
+        edit=False,
+        callback=None,
     )
 
 
-async def _begin_role_selection(
+async def _begin_after_count(
     *,
     count: int,
     state: FSMContext,
     services: ServiceProvider,
     user_id: int,
     message: Message,
+    edit: bool,
+    callback: CallbackQuery | None,
 ) -> None:
-    """Create the game record and render the role-selection keyboard."""
+    """Validate the count for the chosen scenario, create the game, then branch.
+
+    Fixed scenarios jump straight to the composition summary; flexible ones
+    open the (scenario-scoped) role-selection keyboard.
+    """
+    data = await state.get_data()
+    scenario_code: str = data.get("scenario_code", "classic")
     try:
-        game = await services.games.create_game(
-            creator_telegram_id=user_id, player_count=count
-        )
+        scenario = services.scenarios.get_scenario(scenario_code)
+        services.scenarios.validate_player_count(scenario, count)
     except DomainError as exc:
-        await message.answer(f"⚠️ {exc.message_fa}")
+        await _reply(message, callback, f"⚠️ {exc.message_fa}", edit=False)
         return
 
-    catalog = await services.roles.list_catalog()
-    # Store wizard context in FSM.
-    await state.set_state(CreateGameStates.choose_roles)
+    try:
+        game = await services.games.create_game(
+            creator_telegram_id=user_id,
+            player_count=count,
+            scenario_code=scenario.code,
+        )
+    except DomainError as exc:
+        await _reply(message, callback, f"⚠️ {exc.message_fa}", edit=False)
+        return
+
     await state.update_data(
         game_id=game.id,
         player_count=count,
-        selected_ids=[],
+        selected_codes=[],
+        selected_custom_ids=[],
     )
-    await message.answer(
-        _role_selection_text(count, 0),
-        reply_markup=build_role_selection_keyboard(
+
+
+    if scenario.is_fixed:
+        # No role selection: resolve the prescribed composition and summarise.
+        try:
+            result = await services.scenarios.resolve(
+                scenario=scenario, player_count=count
+            )
+        except DomainError as exc:
+            await _reply(message, callback, f"⚠️ {exc.message_fa}", edit=False)
+            return
+        await _show_summary(
+            message=message,
+            callback=callback,
+            state=state,
             game_id=game.id,
-            roles=catalog,
-            selected_ids=[],
-            selected_total=0,
-            target_count=count,
-        ),
+            result=result,
+            scenario_note=format_scenario_composition(scenario, count),
+            edit=edit,
+        )
+        if callback is not None:
+            await callback.answer()
+        return
+
+    # Flexible scenario: show the scenario's selectable roles plus the
+    # creator's own custom roles ("نقش‌های من").
+    roles = await services.scenarios.get_selectable_roles(scenario)
+    custom_roles = await services.custom_roles.list_for_owner(owner_id=user_id)
+    await state.set_state(CreateGameStates.choose_roles)
+    text = _role_selection_text(scenario.name_fa, count, 0)
+    markup = build_role_selection_keyboard(
+        game_id=game.id,
+        roles=roles,
+        selected_ids=[],
+        selected_total=0,
+        target_count=count,
+        custom_roles=custom_roles,
+        selected_custom_ids=[],
     )
+    await _reply(message, callback, text, edit=edit, reply_markup=markup)
+    if callback is not None:
+        await callback.answer()
 
 
-# --- Step 2: role selection -------------------------------------------------
+
+# --- Step 3: role selection (flexible scenarios) ----------------------------
 
 
 @router.callback_query(CreateGameStates.choose_roles, RoleToggleCB.filter())
@@ -144,42 +256,63 @@ async def on_role_toggle(
     state: FSMContext,
     services: ServiceProvider,
 ) -> None:
-    """Toggle a role in/out of the selection and re-render the keyboard.
-
-    Each selected role counts as one player slot (quantity 1). The creator may
-    pick *any* number of roles up to the player count; the remaining slots are
-    auto-filled with simple citizens/mafia at confirm time.
-    """
+    """Toggle a role (catalog or custom) in/out and re-render the keyboard."""
     data = await state.get_data()
     player_count: int = data["player_count"]
+    scenario_code: str = data.get("scenario_code", "classic")
     selected: list[int] = list(data.get("selected_ids", []))
+    selected_custom: list[int] = list(data.get("selected_custom_ids", []))
 
-    if callback_data.role_id in selected:
-        selected.remove(callback_data.role_id)
+    # The combined selection may never exceed the player count.
+    def _total() -> int:
+        return len(selected) + len(selected_custom)
+
+    if callback_data.is_custom:
+        if callback_data.role_id in selected_custom:
+            selected_custom.remove(callback_data.role_id)
+        else:
+            if _total() >= player_count:
+                await callback.answer(
+                    "تعداد نقش‌ها نمی‌تواند از تعداد بازیکنان بیشتر باشد.",
+                    show_alert=True,
+                )
+                return
+            selected_custom.append(callback_data.role_id)
     else:
-        if len(selected) >= player_count:
-            await callback.answer(
-                "تعداد نقش‌ها نمی‌تواند از تعداد بازیکنان بیشتر باشد.",
-                show_alert=True,
-            )
-            return
-        selected.append(callback_data.role_id)
+        if callback_data.role_id in selected:
+            selected.remove(callback_data.role_id)
+        else:
+            if _total() >= player_count:
+                await callback.answer(
+                    "تعداد نقش‌ها نمی‌تواند از تعداد بازیکنان بیشتر باشد.",
+                    show_alert=True,
+                )
+                return
+            selected.append(callback_data.role_id)
 
+    await state.update_data(
+        selected_ids=selected, selected_custom_ids=selected_custom
+    )
 
-    await state.update_data(selected_ids=selected)
-
-    catalog = await services.roles.list_catalog()
+    scenario = services.scenarios.get_scenario(scenario_code)
+    roles = await services.scenarios.get_selectable_roles(scenario)
+    custom_roles = await services.custom_roles.list_for_owner(
+        owner_id=callback.from_user.id
+    )
     await callback.message.edit_text(  # type: ignore[union-attr]
-        _role_selection_text(player_count, len(selected)),
+        _role_selection_text(scenario.name_fa, player_count, _total()),
         reply_markup=build_role_selection_keyboard(
             game_id=callback_data.game_id,
-            roles=catalog,
+            roles=roles,
             selected_ids=selected,
-            selected_total=len(selected),
+            selected_total=_total(),
             target_count=player_count,
+            custom_roles=custom_roles,
+            selected_custom_ids=selected_custom,
         ),
     )
     await callback.answer()
+
 
 
 @router.callback_query(
@@ -207,7 +340,6 @@ async def on_role_locked(callback: CallbackQuery, state: FSMContext) -> None:
     )
 
 
-
 @router.callback_query(
     CreateGameStates.choose_roles, RoleSetupActionCB.filter(F.action == "cancel")
 )
@@ -227,40 +359,55 @@ async def on_role_confirm(
     state: FSMContext,
     services: ServiceProvider,
 ) -> None:
-    """Auto-complete the selection and show the composition summary.
-
-    The creator may select any subset of roles (even none). The composition
-    service validates the mafia/city ratio and fills the remaining slots with
-    simple citizens/mafia. The final config is persisted only after the creator
-    confirms the summary (``finalize`` action).
-    """
+    """Resolve the selection via the scenario engine and show the summary."""
     data = await state.get_data()
     player_count: int = data["player_count"]
-    selected: list[int] = list(data.get("selected_ids", []))
+    scenario_code: str = data.get("scenario_code", "classic")
+    selected_ids: list[int] = list(data.get("selected_ids", []))
+    selected_custom_ids: list[int] = list(data.get("selected_custom_ids", []))
+
+    scenario = services.scenarios.get_scenario(scenario_code)
+    # Translate selected role ids back to codes for the resolver.
+    selectable = await services.scenarios.get_selectable_roles(scenario)
+    code_by_id = {r.role_id: r.code for r in selectable}
+    selected_codes: list[RoleCode] = [
+        code_by_id[rid] for rid in selected_ids if rid in code_by_id
+    ]
+
+    # Resolve the creator's selected custom roles to DTOs (owner-scoped).
+    owned_custom = await services.custom_roles.list_for_owner(
+        owner_id=callback.from_user.id
+    )
+    custom_by_id = {c.id: c for c in owned_custom}
+    selected_custom = [
+        custom_by_id[cid] for cid in selected_custom_ids if cid in custom_by_id
+    ]
 
     try:
-        result = await services.composition.complete_composition(
-            player_count=player_count, selected_role_ids=selected
+        result = await services.scenarios.resolve(
+            scenario=scenario,
+            player_count=player_count,
+            selected_codes=selected_codes,
+            selected_custom_roles=selected_custom,
         )
     except DomainError as exc:
         await callback.answer(exc.message_fa, show_alert=True)
         return
 
-    # Stash the resolved role->quantity map for the finalize step.
-    await state.set_state(CreateGameStates.confirm_summary)
-    await state.update_data(
-        role_quantities={str(k): v for k, v in result.role_quantities.items()},
-    )
-    await callback.message.edit_text(  # type: ignore[union-attr]
-        texts.composition_summary(result),
-        reply_markup=build_composition_summary_keyboard(
-            game_id=callback_data.game_id
-        ),
+
+    await _show_summary(
+        message=callback.message,  # type: ignore[arg-type]
+        callback=callback,
+        state=state,
+        game_id=callback_data.game_id,
+        result=result,
+        scenario_note="",
+        edit=True,
     )
     await callback.answer()
 
 
-# --- Step 3: composition summary confirmation -------------------------------
+# --- Step 4: composition summary confirmation -------------------------------
 
 
 @router.callback_query(
@@ -272,24 +419,48 @@ async def on_summary_back(
     state: FSMContext,
     services: ServiceProvider,
 ) -> None:
-    """Return from the summary to the role-selection keyboard for edits."""
+    """Return from the summary to the role-selection keyboard for edits.
+
+    For fixed scenarios there is nothing to edit, so we bounce back to the
+    scenario picker instead.
+    """
     data = await state.get_data()
     player_count: int = data["player_count"]
+    scenario_code: str = data.get("scenario_code", "classic")
     selected: list[int] = list(data.get("selected_ids", []))
+    selected_custom: list[int] = list(data.get("selected_custom_ids", []))
+    scenario = services.scenarios.get_scenario(scenario_code)
 
-    catalog = await services.roles.list_catalog()
+    if scenario.is_fixed:
+        await state.set_state(CreateGameStates.choose_scenario)
+        scenarios = services.scenarios.list_scenarios()
+        await callback.message.edit_text(  # type: ignore[union-attr]
+            texts.ASK_SCENARIO,
+            reply_markup=build_scenario_picker_keyboard(scenarios),
+        )
+        await callback.answer()
+        return
+
+    roles = await services.scenarios.get_selectable_roles(scenario)
+    custom_roles = await services.custom_roles.list_for_owner(
+        owner_id=callback.from_user.id
+    )
+    total = len(selected) + len(selected_custom)
     await state.set_state(CreateGameStates.choose_roles)
     await callback.message.edit_text(  # type: ignore[union-attr]
-        _role_selection_text(player_count, len(selected)),
+        _role_selection_text(scenario.name_fa, player_count, total),
         reply_markup=build_role_selection_keyboard(
             game_id=callback_data.game_id,
-            roles=catalog,
+            roles=roles,
             selected_ids=selected,
-            selected_total=len(selected),
+            selected_total=total,
             target_count=player_count,
+            custom_roles=custom_roles,
+            selected_custom_ids=selected_custom,
         ),
     )
     await callback.answer()
+
 
 
 @router.callback_query(
@@ -305,8 +476,10 @@ async def on_summary_finalize(
     """Persist the resolved role configuration and reveal the game code."""
     data = await state.get_data()
     stored: dict[str, int] = data.get("role_quantities", {})
+    stored_custom: dict[str, int] = data.get("custom_role_quantities", {})
     role_quantities = {int(k): v for k, v in stored.items()}
-    if not role_quantities:
+    custom_role_quantities = {int(k): v for k, v in stored_custom.items()}
+    if not role_quantities and not custom_role_quantities:
         await callback.answer("خطا در ترکیب نقش‌ها. دوباره تلاش کنید.", show_alert=True)
         return
 
@@ -315,8 +488,10 @@ async def on_summary_finalize(
             game_id=callback_data.game_id,
             creator_telegram_id=callback.from_user.id,
             role_quantities=role_quantities,
+            custom_role_quantities=custom_role_quantities,
         )
     except DomainError as exc:
+
         await callback.answer(exc.message_fa, show_alert=True)
         return
 
@@ -326,13 +501,64 @@ async def on_summary_finalize(
     await callback.answer("بازی ساخته شد ✅")
 
 
-def _role_selection_text(player_count: int, selected: int) -> str:
+# --- Helpers ----------------------------------------------------------------
+
+
+async def _show_summary(
+    *,
+    message: Message,
+    callback: CallbackQuery | None,
+    state: FSMContext,
+    game_id: int,
+    result,
+    scenario_note: str,
+    edit: bool,
+) -> None:
+    """Stash the resolved composition and render the confirmation screen."""
+    await state.set_state(CreateGameStates.confirm_summary)
+    await state.update_data(
+        role_quantities={str(k): v for k, v in result.role_quantities.items()},
+        custom_role_quantities={
+            str(k): v for k, v in result.custom_role_quantities.items()
+        },
+    )
+
+    # Adapt the scenario result into the DTO the summary text expects.
+    dto = CompositionResultDTO(
+        role_quantities=result.role_quantities,
+        composition=result.composition,
+        roles_ordered=result.roles_ordered,
+        added=result.added,
+        player_count=result.player_count,
+    )
+    body = texts.composition_summary(dto)
+    if scenario_note:
+        body = f"{scenario_note}\n\n{body}"
+    markup = build_composition_summary_keyboard(game_id=game_id)
+    await _reply(message, callback, body, edit=edit, reply_markup=markup)
+
+
+async def _reply(
+    message: Message,
+    callback: CallbackQuery | None,
+    text: str,
+    *,
+    edit: bool,
+    reply_markup=None,
+) -> None:
+    """Send or edit a message depending on whether we came from a callback."""
+    if edit and callback is not None:
+        await callback.message.edit_text(text, reply_markup=reply_markup)  # type: ignore[union-attr]
+    else:
+        await message.answer(text, reply_markup=reply_markup)
+
+
+def _role_selection_text(scenario_name: str, player_count: int, selected: int) -> str:
     return (
-        "🎭 <b>انتخاب نقش‌ها</b>\n\n"
+        f"🎭 <b>انتخاب نقش‌ها</b> — {scenario_name}\n\n"
         f"تعداد بازیکنان: {to_persian_digits(player_count)}\n"
         f"نقش‌های انتخاب‌شده: {to_persian_digits(selected)}\n\n"
         "نقش‌های ویژه دلخواه را انتخاب کنید. لازم نیست همه‌ی جای‌ها را پر کنید؛ "
         "جای‌های باقی‌مانده به‌صورت خودکار با «شهروند ساده» و «مافیای ساده» و با "
-        "رعایت نسبت استاندارد پر می‌شوند. سپس «تایید» را بزنید."
+        "رعایت نسبت استاندارد سناریو پر می‌شوند. سپس «تایید» را بزنید."
     )
-

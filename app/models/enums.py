@@ -86,6 +86,13 @@ class RoleCode(str, enum.Enum):
     COMMANDO = "COMMANDO"              # تکاور
     WATCHMAN = "WATCHMAN"              # نگهبان
     GUNNER = "GUNNER"                  # تفنگدار
+    SUSPECT = "SUSPECT"                # مظنون (تفنگدار کاپو)
+    ARMORSMITH = "ARMORSMITH"          # زره‌ساز (تفنگدار کاپو)
+    APOTHECARY = "APOTHECARY"          # عطار (تفنگدار کاپو)
+    HEIR = "HEIR"                      # وارث (تفنگدار کاپو)
+    KADKHODA = "KADKHODA"              # کدخدا (تفنگدار کاپو)
+    CITY_TRUSTED = "CITY_TRUSTED"      # معتمد شهر (تفنگدار کاپو)
+
 
     # --- Mafia ---
     GODFATHER = "GODFATHER"            # رئیس مافیا (گادفادر)
