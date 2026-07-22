@@ -15,7 +15,21 @@ class CreateGameStates(StatesGroup):
 
 
 
+class CustomRoleStates(StatesGroup):
+    """States for the custom-role creation wizard ("🛠 نقش‌های من").
+
+    A user builds a private role step by step: name → team → optional
+    description. The in-progress values are stashed in the FSM context between
+    steps and only persisted once the wizard completes.
+    """
+
+    enter_name = State()         # Awaiting the role's Persian name
+    choose_team = State()        # Picking the alignment (city/mafia/independent)
+    enter_description = State()   # Awaiting an optional description (or skip)
+
+
 class JoinGameStates(StatesGroup):
+
     """States for the join-game flow (players, including the creator)."""
 
     enter_code = State()     # Awaiting the 6-digit game code

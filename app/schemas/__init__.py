@@ -1,6 +1,7 @@
 """Pydantic schemas (DTOs) used between the service layer and handlers."""
 
 from app.schemas.game import (
+    CustomRoleDTO,
     GameDTO,
     GamePlayerDTO,
     LobbyStateDTO,
@@ -10,6 +11,7 @@ from app.schemas.game import (
 )
 
 __all__ = [
+    "CustomRoleDTO",
     "GameDTO",
     "GamePlayerDTO",
     "LobbyStateDTO",
@@ -17,3 +19,4 @@ __all__ = [
     "RoleCatalogItemDTO",
     "RoleSelectionDTO",
 ]
+

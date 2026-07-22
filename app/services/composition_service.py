@@ -240,12 +240,10 @@ class RoleCompositionService:
         }
         for gr in game_roles:
             # City-aligned factions (e.g. Mason) are reported under the town.
-            team = (
-                RoleTeam.CITIZEN
-                if gr.role.team in _CITY_ALIGNED_TEAMS
-                else gr.role.team
-            )
+            # ``gr.team`` resolves catalog *or* custom-role alignment uniformly.
+            team = RoleTeam.CITIZEN if gr.team in _CITY_ALIGNED_TEAMS else gr.team
             counts[team] += gr.quantity
+
         return self.compute_composition_counts(counts)
 
 

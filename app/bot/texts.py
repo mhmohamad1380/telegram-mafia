@@ -6,7 +6,9 @@ from collections.abc import Sequence
 
 from app.schemas.game import (
     CompositionResultDTO,
+    CustomRoleDTO,
     GameDTO,
+
     GamePlayerDTO,
     LobbyStateDTO,
     PlayerRoleDTO,
@@ -319,5 +321,86 @@ def confirm_delete_game(detail: UserGameDetailDTO) -> str:
         f"آیا از حذف بازی با کد <code>{detail.code}</code> مطمئن هستید؟\n"
         "این عملیات غیرقابل بازگشت است و تمام بازیکنان و نقش‌ها حذف می‌شوند."
     )
+
+
+# --- "🛠 نقش‌های من" (custom roles) -------------------------------------------
+
+CUSTOM_ROLES_EMPTY = (
+    "🛠 <b>نقش‌های من</b>\n\n"
+    "شما هنوز هیچ نقش سفارشی نساخته‌اید.\n"
+    "با نقش‌های سفارشی می‌توانید نقش‌های دلخواه خود را برای استفاده در بازی‌ها "
+    "تعریف کنید.\n\n"
+    "برای ساخت اولین نقش، «➕ ساخت نقش جدید» را بزنید."
+)
+
+CUSTOM_ROLES_INTRO = (
+    "🛠 <b>نقش‌های من</b>\n\n"
+    "لیست نقش‌های سفارشی شما در ادامه آمده است. برای مشاهده یا حذف هر نقش روی "
+    "آن بزنید، یا یک نقش تازه بسازید."
+)
+
+CUSTOM_ROLE_ASK_NAME = (
+    "🛠 <b>ساخت نقش جدید</b>\n\n"
+    "نام نقش را وارد کنید (مثلاً: «نگهبان شب»).\n"
+    "حداکثر ۶۴ کاراکتر."
+)
+
+CUSTOM_ROLE_ASK_TEAM = (
+    "🏳️ <b>تیم نقش</b>\n\n"
+    "این نقش به کدام تیم تعلق دارد؟"
+)
+
+CUSTOM_ROLE_ASK_DESCRIPTION = (
+    "📝 <b>توضیحات نقش</b>\n\n"
+    "یک توضیح کوتاه برای این نقش بنویسید (اختیاری).\n"
+    "اگر نمی‌خواهید توضیحی اضافه کنید، «بدون توضیح» را بنویسید یا از دکمهٔ زیر "
+    "استفاده کنید."
+)
+
+#: Value the user can type to skip the optional description step.
+CUSTOM_ROLE_SKIP_DESCRIPTION = "بدون توضیح"
+
+
+def custom_role_created(role: CustomRoleDTO) -> str:
+    """Confirmation shown after a custom role is saved."""
+    # Local import avoids a keyboards<->texts import cycle at module load.
+    from app.bot.keyboards.custom_role import TEAM_LABEL_FA
+
+    team_label = TEAM_LABEL_FA.get(role.team, role.team.value)
+    text = (
+        "✅ <b>نقش سفارشی ساخته شد!</b>\n\n"
+        f"🎭 نام: <b>{role.name_fa}</b>\n"
+        f"🏳️ تیم: {team_label}"
+    )
+    if role.description:
+        text += f"\n📝 {role.description}"
+    return text
+
+
+def custom_role_detail(role: CustomRoleDTO) -> str:
+    """Detail screen for a single custom role."""
+    from app.bot.keyboards.custom_role import TEAM_LABEL_FA
+
+    team_label = TEAM_LABEL_FA.get(role.team, role.team.value)
+    text = (
+        "🛠 <b>جزئیات نقش سفارشی</b>\n\n"
+        f"🎭 نام: <b>{role.name_fa}</b>\n"
+        f"🏳️ تیم: {team_label}"
+    )
+    text += f"\n📝 {role.description}" if role.description else "\n📝 بدون توضیح"
+    return text
+
+
+def confirm_delete_custom_role(role: CustomRoleDTO) -> str:
+    return (
+        "⚠️ <b>حذف نقش سفارشی</b>\n\n"
+        f"آیا از حذف نقش «{role.name_fa}» مطمئن هستید؟\n"
+        "این عملیات غیرقابل بازگشت است."
+    )
+
+
+def custom_role_deleted(name_fa: str) -> str:
+    return f"🗑 نقش سفارشی «{name_fa}» حذف شد."
+
 
 

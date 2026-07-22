@@ -10,8 +10,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.custom_role import CustomRole
     from app.models.game import Game
     from app.models.game_player import GamePlayer
+
 
 
 class User(Base, TimestampMixin):
@@ -40,6 +42,11 @@ class User(Base, TimestampMixin):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    custom_roles: Mapped[list["CustomRole"]] = relationship(
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
+
 
     @property
     def display_name(self) -> str:

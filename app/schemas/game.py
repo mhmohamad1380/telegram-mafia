@@ -29,7 +29,24 @@ class RoleCatalogItemDTO(BaseModel):
 
 
 
+class CustomRoleDTO(BaseModel):
+    """A user-owned custom role as shown in management screens.
+
+    Decoupled from the ORM so handlers can render the owner's roles without a
+    live session. Custom roles have no catalog :class:`RoleCode`.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: int
+    owner_id: int
+    name_fa: str
+    team: RoleTeam
+    description: str | None = None
+
+
 class RoleSelectionDTO(BaseModel):
+
     """A selected role with the chosen quantity during game setup."""
 
     model_config = ConfigDict(frozen=True)
@@ -70,14 +87,20 @@ class GamePlayerDTO(BaseModel):
 
 
 class PlayerRoleDTO(BaseModel):
-    """The private role reveal sent to a single player."""
+    """The private role reveal sent to a single player.
+
+    ``code`` is ``None`` for user-defined custom roles (they have no catalog
+    :class:`RoleCode`); ``is_custom`` distinguishes the two for presentation.
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    code: RoleCode
+    code: RoleCode | None = None
     name_fa: str
     team: RoleTeam
     description: str | None = None
+    is_custom: bool = False
+
 
 
 class LobbyStateDTO(BaseModel):

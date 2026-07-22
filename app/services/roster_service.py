@@ -36,9 +36,10 @@ class RosterService:
             role_name = None
             assignment = await self._repos.assignments.get_by_player(player.id)
             if assignment is not None:
-                role = assignment.game_role.role
-                role_code = role.code
-                role_name = role.name_fa
+                game_role = assignment.game_role
+                role_code = game_role.role_code
+                role_name = game_role.display_name
+
             roster.append(
                 GamePlayerDTO(
                     player_id=player.id,

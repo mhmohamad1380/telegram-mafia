@@ -60,7 +60,34 @@ class RoleInfoCB(CallbackData, prefix="roleinfo"):
     index: int = 0
 
 
+class CustomRoleCB(CallbackData, prefix="crole"):
+    """"🛠 نقش‌های من" navigation and per-role management.
+
+    ``action`` is one of:
+        * ``"list"``          — show the user's custom-role list
+        * ``"new"``           — start the create-custom-role wizard
+        * ``"open"``          — open the detail screen for ``role_id``
+        * ``"delete_prompt"`` — ask for delete confirmation
+        * ``"delete_confirm"``— perform the (soft) deletion
+        * ``"home"``          — dismiss the card / back to main menu
+    ``role_id`` is the target custom role (0 when not applicable).
+    """
+
+    action: str
+    role_id: int = 0
+
+
+class CustomRoleTeamCB(CallbackData, prefix="croleteam"):
+    """Pick the alignment (team) while creating a custom role.
+
+    ``team`` is a :class:`~app.models.enums.RoleTeam` value.
+    """
+
+    team: str
+
+
 class MyGamesCB(CallbackData, prefix="mygames"):
+
     """"📂 بازی‌های من" navigation and per-game management.
 
     ``action`` is one of:

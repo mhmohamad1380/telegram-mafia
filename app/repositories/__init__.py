@@ -12,7 +12,9 @@ from functools import cached_property
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories.custom_role_repository import CustomRoleRepository
 from app.repositories.game_event_repository import GameEventRepository
+
 from app.repositories.game_player_repository import GamePlayerRepository
 from app.repositories.game_repository import GameRepository
 from app.repositories.game_role_repository import GameRoleRepository
@@ -34,6 +36,11 @@ class RepositoryProvider:
     @cached_property
     def roles(self) -> RoleRepository:
         return RoleRepository(self.session)
+
+    @cached_property
+    def custom_roles(self) -> CustomRoleRepository:
+        return CustomRoleRepository(self.session)
+
 
     @cached_property
     def games(self) -> GameRepository:
@@ -58,7 +65,9 @@ class RepositoryProvider:
 
 __all__ = [
     "RepositoryProvider",
+    "CustomRoleRepository",
     "GameEventRepository",
+
     "GamePlayerRepository",
     "GameRepository",
     "GameRoleRepository",

@@ -12,10 +12,12 @@ from aiogram import Router
 from app.bot.handlers import (
     common,
     create_game,
+    custom_role,
     game_control,
     info,
     join_game,
 )
+
 
 
 def get_main_router() -> Router:
@@ -23,6 +25,8 @@ def get_main_router() -> Router:
     router = Router(name="main")
     router.include_router(common.router)
     router.include_router(info.router)
+    router.include_router(custom_role.router)
+
     router.include_router(create_game.router)
     router.include_router(join_game.router)
     router.include_router(game_control.router)

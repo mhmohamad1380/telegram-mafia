@@ -19,10 +19,14 @@ class GameRoleRepository(BaseRepository[GameRole]):
         result = await self.session.execute(
             select(GameRole)
             .where(GameRole.game_id == game_id)
-            .options(selectinload(GameRole.role))
+            .options(
+                selectinload(GameRole.role),
+                selectinload(GameRole.custom_role),
+            )
             .order_by(GameRole.id)
         )
         return list(result.scalars().all())
+
 
     async def list_available_for_update(self, game_id: int) -> list[GameRole]:
         """Return role rows with ``remaining > 0``, row-locked for update.
@@ -34,9 +38,13 @@ class GameRoleRepository(BaseRepository[GameRole]):
         result = await self.session.execute(
             select(GameRole)
             .where(GameRole.game_id == game_id, GameRole.remaining > 0)
-            .options(selectinload(GameRole.role))
+            .options(
+                selectinload(GameRole.role),
+                selectinload(GameRole.custom_role),
+            )
             .order_by(GameRole.id)
             .with_for_update(of=GameRole)
+
         )
         return list(result.scalars().all())
 

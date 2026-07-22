@@ -154,3 +154,37 @@ class NotPlayersTurnError(DomainError):
         "لطفاً منتظر بمانید تا بازیکنان قبل از شما نقش خود را دریافت کنند."
     )
 
+
+# --- Custom roles -----------------------------------------------------------
+
+
+class CustomRoleNotFoundError(DomainError):
+    message_fa = "نقش سفارشی موردنظر پیدا نشد."
+
+
+class CustomRoleAccessDeniedError(DomainError):
+    """Raised when a user tries to view/edit/delete another user's custom role."""
+
+    message_fa = "شما به این نقش سفارشی دسترسی ندارید."
+
+
+class CustomRoleNameEmptyError(DomainError):
+    message_fa = "نام نقش نمی‌تواند خالی باشد."
+
+
+class CustomRoleNameTooLongError(DomainError):
+    message_fa = "نام نقش نباید بیش از ۶۴ کاراکتر باشد."
+
+
+class CustomRoleNameDuplicateError(DomainError):
+    """Raised when the owner already has an active custom role with that name."""
+
+    message_fa = "شما قبلاً نقشی با این نام ساخته‌اید. یک نام دیگر انتخاب کنید."
+
+
+class CustomRoleLimitReachedError(DomainError):
+    """Raised when the owner has reached the maximum number of custom roles."""
+
+    message_fa = "به حداکثر تعداد مجاز نقش سفارشی رسیده‌اید."
+
+

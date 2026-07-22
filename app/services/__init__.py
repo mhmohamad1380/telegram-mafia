@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories import RepositoryProvider
 from app.services.assignment_service import AssignmentService
 from app.services.composition_service import RoleCompositionService
+from app.services.custom_role_service import CustomRoleService
+
 from app.services.game_management_service import GameManagementService
 from app.services.game_service import GameService
 
@@ -98,10 +100,17 @@ class ServiceProvider:
     def game_management(self) -> GameManagementService:
         return GameManagementService(self._repos)
 
+    @cached_property
+    def custom_roles(self) -> CustomRoleService:
+        return CustomRoleService(self._repos)
+
+
 
 __all__ = [
     "ServiceProvider",
     "AssignmentService",
+    "CustomRoleService",
+
     "GameManagementService",
     "GameService",
     "LobbyService",

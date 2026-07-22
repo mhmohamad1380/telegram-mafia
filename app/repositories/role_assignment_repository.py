@@ -21,7 +21,11 @@ class RoleAssignmentRepository(BaseRepository[RoleAssignment]):
             select(RoleAssignment)
             .where(RoleAssignment.player_id == player_id)
             .options(
-                selectinload(RoleAssignment.game_role).selectinload(GameRole.role)
+                selectinload(RoleAssignment.game_role).selectinload(GameRole.role),
+                selectinload(RoleAssignment.game_role).selectinload(
+                    GameRole.custom_role
+                ),
             )
+
         )
         return result.scalar_one_or_none()

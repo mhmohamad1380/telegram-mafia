@@ -75,28 +75,34 @@ class AssignmentService:
             player.status = PlayerStatus.ASSIGNED
             await self._repos.session.flush()
 
+            role_ref = (
+                game_role.role_code.value
+                if game_role.role_code is not None
+                else f"custom:{game_role.custom_role_id}"
+            )
             await self._repos.events.record(
                 game_id=player.game_id,
                 event_type=GameEventType.ROLE_ASSIGNED,
                 user_id=player.user_id,
                 payload={
                     "player_id": player.id,
-                    "role_code": game_role.role.code.value,
+                    "role_code": role_ref,
                 },
             )
             logger.info(
                 "role_assigned",
                 game_id=player.game_id,
                 player_id=player.id,
-                role_code=game_role.role.code.value,
+                role_code=role_ref,
             )
-            role = game_role.role
             return PlayerRoleDTO(
-                code=role.code,
-                name_fa=role.name_fa,
-                team=role.team,
-                description=role.description,
+                code=game_role.role_code,
+                name_fa=game_role.display_name,
+                team=game_role.team,
+                description=game_role.description,
+                is_custom=game_role.is_custom,
             )
+
 
         # Every candidate slot was claimed concurrently between our lock and the
         # decrement (should be impossible under the row lock, but guard anyway).

@@ -10,7 +10,17 @@ from app.bot.keyboards.game import (
     build_role_selection_keyboard,
     build_waiting_keyboard,
 )
+from app.bot.keyboards.custom_role import (
+    CUSTOM_ROLE_TEAMS,
+    TEAM_LABEL_FA,
+    build_custom_role_delete_confirm_keyboard,
+    build_custom_role_detail_keyboard,
+    build_custom_roles_keyboard,
+    build_empty_custom_roles_keyboard,
+    build_team_picker_keyboard,
+)
 from app.bot.keyboards.info import (
+
     GAME_STATUS_LABELS_FA,
     build_delete_confirm_keyboard,
     build_game_detail_keyboard,
@@ -21,12 +31,14 @@ from app.bot.keyboards.info import (
 from app.bot.keyboards.reply import (
     BTN_CANCEL,
     BTN_CREATE_GAME,
+    BTN_CUSTOM_ROLES,
     BTN_JOIN_GAME,
     BTN_MY_GAMES,
     BTN_ROLE_INFO,
     MAIN_MENU_BUTTONS,
     build_main_menu_keyboard,
 )
+
 
 __all__ = [
     "build_composition_summary_keyboard",
@@ -44,11 +56,20 @@ __all__ = [
     "build_game_detail_keyboard",
     "build_delete_confirm_keyboard",
     "GAME_STATUS_LABELS_FA",
+    "build_custom_roles_keyboard",
+    "build_empty_custom_roles_keyboard",
+    "build_custom_role_detail_keyboard",
+    "build_custom_role_delete_confirm_keyboard",
+    "build_team_picker_keyboard",
+    "CUSTOM_ROLE_TEAMS",
+    "TEAM_LABEL_FA",
     "BTN_CANCEL",
     "BTN_CREATE_GAME",
+    "BTN_CUSTOM_ROLES",
     "BTN_JOIN_GAME",
     "BTN_MY_GAMES",
     "BTN_ROLE_INFO",
     "MAIN_MENU_BUTTONS",
 ]
+
 

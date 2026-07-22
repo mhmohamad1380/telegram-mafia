@@ -11,8 +11,10 @@ from app.models.enums import (
     RoleCode,
     RoleTeam,
 )
+from app.models.custom_role import CustomRole
 from app.models.game import Game
 from app.models.game_event import GameEvent
+
 from app.models.game_player import GamePlayer
 from app.models.game_role import GameRole
 from app.models.role import Role
@@ -27,8 +29,10 @@ __all__ = [
     "RoleCode",
     "RoleTeam",
     # Models
+    "CustomRole",
     "Game",
     "GameEvent",
+
     "GamePlayer",
     "GameRole",
     "Role",
