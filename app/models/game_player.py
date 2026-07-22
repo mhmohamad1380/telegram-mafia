@@ -69,6 +69,13 @@ class GamePlayer(Base, IntPKMixin, TimestampMixin):
     role_assigned_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Telegram chat id + message id of the player's *live* lobby screen (the
+    # message showing the turn/number picker). Persisted so the live-sync
+    # service can edit it in place whenever the shared lobby state changes,
+    # instead of asking the player to refresh. Both NULL until the first render.
+    lobby_chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    lobby_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
     status: Mapped[PlayerStatus] = mapped_column(
         Enum(PlayerStatus, name="player_status", native_enum=True),
         default=PlayerStatus.JOINED,

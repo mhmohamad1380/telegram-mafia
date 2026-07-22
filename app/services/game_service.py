@@ -6,8 +6,9 @@ from collections.abc import Mapping
 
 from app.config.logging import get_logger
 
-from app.models.enums import GameEventType, GameStatus
+from app.models.enums import GameEventType, GameStatus, RoleMode
 from app.models.game import Game
+
 from app.models.game_role import GameRole
 from app.repositories import RepositoryProvider
 from app.schemas.game import GameDTO
@@ -41,6 +42,7 @@ class GameService:
         creator_telegram_id: int,
         player_count: int,
         scenario_code: str = "classic",
+        role_mode: RoleMode = RoleMode.MANUAL_ROLE_SELECTION,
     ) -> GameDTO:
         """Create a new game in ``CREATING`` state with a unique join code.
 
@@ -48,6 +50,8 @@ class GameService:
         middleware). ``player_count`` is validated against sane bounds.
         ``scenario_code`` records the chosen game mode (see the scenario
         catalog); scenario-specific validation happens in the scenario layer.
+        ``role_mode`` selects manual (default, turn-based draw) vs. automatic
+        role assignment on join; existing callers keep the manual behaviour.
         """
         if not MIN_PLAYERS <= player_count <= MAX_PLAYERS:
             raise InvalidPlayerCountError(
@@ -60,6 +64,7 @@ class GameService:
             creator_id=creator_telegram_id,
             player_count=player_count,
             scenario_code=scenario_code,
+            role_mode=role_mode,
             status=GameStatus.CREATING,
         )
         await self._repos.games.add(game)
@@ -71,6 +76,7 @@ class GameService:
                 "player_count": player_count,
                 "code": code,
                 "scenario_code": scenario_code,
+                "role_mode": role_mode.value,
             },
         )
         logger.info(
@@ -79,8 +85,10 @@ class GameService:
             code=code,
             player_count=player_count,
             scenario_code=scenario_code,
+            role_mode=role_mode.value,
         )
         return self._to_dto(game)
+
 
 
     async def _generate_unique_code(self) -> str:
@@ -259,4 +267,6 @@ class GameService:
             creator_id=game.creator_id,
             player_count=game.player_count,
             status=game.status,
+            role_mode=game.role_mode,
         )
+

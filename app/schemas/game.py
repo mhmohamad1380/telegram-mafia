@@ -9,7 +9,14 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import GameStatus, PlayerStatus, RoleCode, RoleTeam
+from app.models.enums import (
+    GameStatus,
+    PlayerStatus,
+    RoleCode,
+    RoleMode,
+    RoleTeam,
+)
+
 
 
 class RoleCatalogItemDTO(BaseModel):
@@ -68,9 +75,13 @@ class GameDTO(BaseModel):
     creator_id: int
     player_count: int
     status: GameStatus
+    #: How roles reach players: manual FIFO turn vs. instant auto-assign on join.
+    role_mode: RoleMode = RoleMode.MANUAL_ROLE_SELECTION
+
 
 
 class GamePlayerDTO(BaseModel):
+
     """A player entry in the lobby / roster."""
 
     model_config = ConfigDict(frozen=True)
@@ -148,7 +159,77 @@ class AssignmentResultDTO(BaseModel):
     all_assigned: bool = False
 
 
+class PlayerSyncScreenDTO(BaseModel):
+    """One waiting player's freshly-computed live lobby screen.
+
+    Produced by :class:`~app.services.live_sync_service.LiveGameSyncService` for
+    every player whose lobby message should be edited in place after a state
+    change. Carries everything the presentation layer needs to perform the edit
+    without any further service calls:
+
+    * ``chat_id`` / ``message_id`` — where to edit (the player's stored message).
+    * ``text`` — the new message body.
+    * ``kind`` + ``available_numbers`` — describe which keyboard to rebuild:
+        - ``"waiting"``: waiting-for-lobby / not-your-turn screen.
+        - ``"numbers"``: it's this player's turn to pick a seat number.
+        - ``"getrole"``: turn holder who already picked a seat and may now
+          draw their role.
+    Keyboards are built in the bot layer (services stay Telegram-agnostic).
+
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    user_id: int
+    game_id: int
+    chat_id: int
+    message_id: int
+    text: str
+    kind: str  # "waiting" | "numbers"
+    available_numbers: list[int] = []
+
+
+class TestStepResultDTO(BaseModel):
+    """One step of the owner test flow with its pass/fail outcome."""
+
+    model_config = ConfigDict(frozen=True)
+
+    #: Machine key, e.g. ``"game_creation"``.
+    key: str
+    #: Human-friendly label shown in the report, e.g. ``"Game Creation"``.
+    label: str
+    #: Whether the step succeeded.
+    ok: bool
+    #: Optional extra detail (error message on failure, summary on success).
+    detail: str | None = None
+
+
+class TestFlowReportDTO(BaseModel):
+    """Full result of a :class:`BotOwnerTestFlowService` run.
+
+    Bundles every executed step plus the aggregate outcome so the presentation
+    layer can render the "🧪 Test Flow Result" card. ``failed_step`` is the label
+    of the first failing step (``None`` on success).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    success: bool
+    steps: list[TestStepResultDTO]
+    game_code: str | None = None
+    game_id: int | None = None
+    player_count: int = 0
+    scenario_code: str | None = None
+    citizen_count: int = 0
+    mafia_count: int = 0
+    independent_count: int = 0
+    failed_step: str | None = None
+    error: str | None = None
+
+
 class UserGameSummaryDTO(BaseModel):
+
+
     """One entry in a user's "📂 بازی‌های من" list.
 
     Summarises a game the user participates in (as creator or plain member),

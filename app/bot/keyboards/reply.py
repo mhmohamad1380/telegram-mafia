@@ -18,6 +18,7 @@ BTN_ROLE_INFO = "📖 توضیح نقش‌ها"
 BTN_SCENARIOS = "📚 سناریوها"
 BTN_MY_GAMES = "📂 بازی‌های من"
 BTN_CUSTOM_ROLES = "🛠 نقش‌های من"
+BTN_OWNER_TEST = "🧪 تست کامل بازی"
 BTN_CANCEL = "❌ لغو عملیات"
 
 #: All main-menu captions, for quick membership checks in handlers.
@@ -29,6 +30,7 @@ MAIN_MENU_BUTTONS: frozenset[str] = frozenset(
         BTN_SCENARIOS,
         BTN_MY_GAMES,
         BTN_CUSTOM_ROLES,
+        BTN_OWNER_TEST,
         BTN_CANCEL,
     }
 )
@@ -36,11 +38,14 @@ MAIN_MENU_BUTTONS: frozenset[str] = frozenset(
 
 
 
-def build_main_menu_keyboard() -> ReplyKeyboardMarkup:
+def build_main_menu_keyboard(*, is_owner: bool = False) -> ReplyKeyboardMarkup:
     """Return the always-visible main-menu reply keyboard.
 
     ``resize_keyboard`` makes it compact and ``is_persistent`` keeps it docked
-    for the user instead of collapsing after a single use.
+    for the user instead of collapsing after a single use. When ``is_owner`` is
+    true, an extra owner-only «🧪 تست کامل بازی» button is appended so the bot
+    owner can run the end-to-end self-test straight from the menu; regular users
+    never see it.
     """
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text=BTN_CREATE_GAME))
@@ -49,9 +54,14 @@ def build_main_menu_keyboard() -> ReplyKeyboardMarkup:
     builder.add(KeyboardButton(text=BTN_SCENARIOS))
     builder.add(KeyboardButton(text=BTN_MY_GAMES))
     builder.add(KeyboardButton(text=BTN_CUSTOM_ROLES))
+    # [create | join] [roles | scenarios] [my games | custom roles] ...
+    layout = [2, 2, 2]
+    if is_owner:
+        builder.add(KeyboardButton(text=BTN_OWNER_TEST))
+        layout.append(1)  # [owner test]
     builder.add(KeyboardButton(text=BTN_CANCEL))
-    # [create | join] [roles | scenarios] [my games | custom roles] [cancel]
-    builder.adjust(2, 2, 2, 1)
+    layout.append(1)  # [cancel]
+    builder.adjust(*layout)
 
 
 
@@ -60,3 +70,4 @@ def build_main_menu_keyboard() -> ReplyKeyboardMarkup:
         is_persistent=True,
         input_field_placeholder="یک گزینه را انتخاب کنید…",
     )
+

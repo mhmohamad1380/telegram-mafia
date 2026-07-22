@@ -16,7 +16,9 @@ from app.bot.keyboards import (
     BTN_JOIN_GAME,
     build_main_menu_keyboard,
 )
+from app.config.settings import get_settings
 from app.services import ServiceProvider
+
 from app.utils.role_catalog import (
     ROLE_BY_CODE,
     TEAM_LABELS_FA,
@@ -26,17 +28,35 @@ from app.utils.role_catalog import (
 router = Router(name="common")
 
 
+def _is_owner(message: Message) -> bool:
+    """Whether the message author is the configured bot owner.
+
+    Drives whether the owner-only «🧪 تست کامل بازی» button is shown in the
+    main menu. When ``BOT_OWNER_ID`` is unset the feature is disabled for all.
+    """
+    owner_id = get_settings().bot_owner_id
+    return owner_id is not None and message.from_user is not None and (
+        message.from_user.id == owner_id
+    )
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext) -> None:
     """Greet the user, clear any stale flow, and dock the persistent menu."""
     await state.clear()
-    await message.answer(texts.START, reply_markup=build_main_menu_keyboard())
+    await message.answer(
+        texts.START,
+        reply_markup=build_main_menu_keyboard(is_owner=_is_owner(message)),
+    )
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
     """Show usage help."""
-    await message.answer(texts.HELP, reply_markup=build_main_menu_keyboard())
+    await message.answer(
+        texts.HELP,
+        reply_markup=build_main_menu_keyboard(is_owner=_is_owner(message)),
+    )
 
 
 async def _cancel(message: Message, state: FSMContext) -> None:
@@ -44,7 +64,10 @@ async def _cancel(message: Message, state: FSMContext) -> None:
     current = await state.get_state()
     await state.clear()
     text = texts.CANCELLED if current is not None else texts.NOTHING_TO_CANCEL
-    await message.answer(text, reply_markup=build_main_menu_keyboard())
+    await message.answer(
+        text, reply_markup=build_main_menu_keyboard(is_owner=_is_owner(message))
+    )
+
 
 
 @router.message(Command("cancel"))

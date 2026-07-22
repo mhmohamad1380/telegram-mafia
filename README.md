@@ -206,6 +206,58 @@ alembic downgrade -1
 
 ---
 
+## ✅ End-to-End tests
+
+A comprehensive, self-contained **E2E QA suite** lives in `tests/`. It drives the
+**real service layer** against a live PostgreSQL + Redis (the same ones the bot
+uses) and validates all 25 functional areas — startup, the create-game wizard,
+scenarios, lobby/turn flow, role assignment, custom roles, keyboards, callback
+round-trips, FSM states, and **race conditions** (concurrent joins, number picks,
+and deletes).
+
+The runner never halts on the first failure: every check is recorded and a
+single, section-grouped report is printed at the end with the exact location,
+cause, exception, suggested fix, and traceback for each problem. The process exit
+code is `0` only when every check passes, so it doubles as a CI/release gate.
+
+Run it inside the app container (recommended, so all deps + env are present):
+
+```bash
+# Bring up the datastores, then run the suite
+docker compose up -d postgres redis
+docker compose run --rm -v "$(pwd)/tests:/app/tests" bot python -m tests.e2e
+```
+
+Or locally, with the DB/Redis reachable via your environment:
+
+```bash
+alembic upgrade head        # ensure the schema + seed data exist
+python -m tests.e2e
+```
+
+Expected tail of a healthy run:
+
+```
+Total Tests : 312
+Passed      : 312
+Failed      : 0
+Warnings    : 0
+
+✅ Project is production ready.
+```
+
+Suite layout:
+
+| File | Responsibility |
+| --- | --- |
+| `tests/reporter.py` | Error-collecting reporter + final report renderer |
+| `tests/harness.py` | App context: engine/session, Redis, fake users, cleanup |
+| `tests/flows.py` | Reusable high-level game flows (create/join/turns/start) |
+| `tests/sections.py` | The 25 functional test sections |
+| `tests/e2e.py` | Runnable entry point (`python -m tests.e2e`) |
+
+---
+
 ## 📄 License
 
 Provided as-is for educational and personal use.

@@ -40,6 +40,15 @@ class Settings(BaseSettings):
             "Leave unset/empty to connect directly with no proxy."
         ),
     )
+    bot_owner_id: int | None = Field(
+        default=None,
+        description=(
+            "Telegram user id of the bot's owner. Only this user sees and may "
+            "use the internal '🧪 تست کامل بازی' (full-game test) flow. Leave "
+            "unset to disable the owner-only test tooling entirely."
+        ),
+    )
+
 
     @field_validator("bot_proxy", "redis_password", mode="before")
     @classmethod

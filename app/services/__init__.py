@@ -14,15 +14,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories import RepositoryProvider
 from app.services.assignment_service import AssignmentService
+from app.services.auto_role_assignment_service import AutoRoleAssignmentService
 from app.services.composition_service import RoleCompositionService
 from app.services.custom_role_service import CustomRoleService
+from app.services.fake_user_service import FakeUserService
+
 
 from app.services.game_management_service import GameManagementService
 from app.services.game_service import GameService
 
+from app.services.live_sync_service import LiveGameSyncService
 from app.services.lobby_service import LobbyService
 from app.services.lobby_state_service import LobbyStateService
+from app.services.owner_test_flow_service import BotOwnerTestFlowService
+
 from app.services.player_service import PlayerService
+
 from app.services.randomizer_service import RandomizerService
 from app.services.role_info_service import RoleInfoService
 from app.services.role_service import RoleService
@@ -91,8 +98,33 @@ class ServiceProvider:
         )
 
     @cached_property
+    def auto_assignment(self) -> AutoRoleAssignmentService:
+        return AutoRoleAssignmentService(self._repos, self.assignments, self.games)
+
+    @cached_property
+    def fake_users(self) -> FakeUserService:
+        return FakeUserService(self._repos)
+
+    @cached_property
+    def owner_test_flow(self) -> BotOwnerTestFlowService:
+        return BotOwnerTestFlowService(
+            self._repos,
+            games=self.games,
+            scenarios=self.scenarios,
+            lobby=self.lobby,
+            auto_assignment=self.auto_assignment,
+            fake_users=self.fake_users,
+        )
+
+    @cached_property
+    def live_sync(self) -> LiveGameSyncService:
+        return LiveGameSyncService(self._repos, self.turns)
+
+
+    @cached_property
     def role_info(self) -> RoleInfoService:
         return RoleInfoService()
+
 
     @cached_property
     def user_games(self) -> UserGamesService:
@@ -115,11 +147,17 @@ class ServiceProvider:
 __all__ = [
     "ServiceProvider",
     "AssignmentService",
+    "AutoRoleAssignmentService",
+    "BotOwnerTestFlowService",
     "CustomRoleService",
+    "FakeUserService",
+
 
     "GameManagementService",
     "GameService",
+    "LiveGameSyncService",
     "LobbyService",
+
     "LobbyStateService",
     "PlayerService",
     "RandomizerService",

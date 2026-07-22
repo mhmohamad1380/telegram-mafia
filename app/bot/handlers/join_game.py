@@ -26,11 +26,15 @@ from app.bot.keyboards import (
     build_player_lobby_keyboard,
     build_waiting_keyboard,
 )
+from app.bot.live_broadcaster import broadcast_lobby_sync
+
 from app.bot.states import JoinGameStates
 from app.config.logging import get_logger
+from app.models.enums import RoleMode
 from app.schemas.game import TurnStateDTO
 from app.services import ServiceProvider
 from app.utils.exceptions import DomainError, PlayerNotInGameError
+
 
 logger = get_logger(__name__)
 router = Router(name="join_game")
@@ -81,7 +85,10 @@ async def cmd_join(message: Message, state: FSMContext) -> None:
 
 @router.message(JoinGameStates.enter_code)
 async def on_code_entered(
-    message: Message, state: FSMContext, services: ServiceProvider
+    message: Message,
+    state: FSMContext,
+    services: ServiceProvider,
+    bot: Bot,
 ) -> None:
     """Validate the code, join the lobby, then render the turn-aware screen."""
     raw = (message.text or "").strip()
@@ -101,6 +108,19 @@ async def on_code_entered(
     await state.update_data(game_id=game.id, code=game.code)
 
     await message.answer(texts.joined_lobby(game))
+
+    # Auto-assignment games hand out a seat number and a random role the instant
+    # the player joins — no waiting for the lobby, no manual "get role" tap.
+    if game.role_mode == RoleMode.AUTO_ROLE_ASSIGNMENT:
+        await _auto_assign_on_join(
+            services=services,
+            bot=bot,
+            game_id=game.id,
+            user_id=user_id,
+            message=message,
+        )
+        return
+
     sent = await message.answer("⏳ در حال بررسی وضعیت...")
     await _render_turn_screen(
         services=services,
@@ -108,6 +128,17 @@ async def on_code_entered(
         user_id=user_id,
         edit_message=sent,
     )
+
+    # A new player changed the shared lobby (joined counter, possibly lobby
+    # completeness). Push the fresh screen to everyone already waiting so they
+    # see it live, without having to refresh.
+    await broadcast_lobby_sync(
+        bot=bot,
+        services=services,
+        game_id=game.id,
+        exclude_user_id=user_id,
+    )
+
 
 
 # --- Turn-aware screen renderer ---------------------------------------------
@@ -156,6 +187,15 @@ async def _render_turn_screen(
 
     turn: TurnStateDTO = await services.lobby.get_turn_state(game_id=game_id)
 
+    # This message is (or becomes) the player's live lobby screen: remember it
+    # so a later state change elsewhere can edit it in place via the broadcaster.
+    await _remember_lobby_message(
+        services=services,
+        game_id=game_id,
+        user_id=user_id,
+        message=edit_message,
+    )
+
     if not turn.lobby_complete:
         await _safe_edit(
             edit_message,
@@ -193,8 +233,81 @@ async def _render_turn_screen(
         )
 
 
+async def _remember_lobby_message(
+    *,
+    services: ServiceProvider,
+    game_id: int,
+    user_id: int,
+    message: Message,
+) -> None:
+    """Persist this message as the player's live lobby screen (best-effort)."""
+    if message.chat is None:
+        return
+    try:
+        await services.live_sync.record_lobby_message(
+            game_id=game_id,
+            user_id=user_id,
+            chat_id=message.chat.id,
+            message_id=message.message_id,
+        )
+    except DomainError as exc:
+        logger.debug(
+            "record_lobby_message_failed",
+            game_id=game_id,
+            user_id=user_id,
+            error=str(exc),
+        )
+
+
+
+
+# --- Auto role-assignment on join -------------------------------------------
+
+
+async def _auto_assign_on_join(
+    *,
+    services: ServiceProvider,
+    bot: Bot,
+    game_id: int,
+    user_id: int,
+    message: Message,
+) -> None:
+    """Immediately grant a seat number + random role and reveal it privately.
+
+    Used only for :class:`RoleMode.AUTO_ROLE_ASSIGNMENT` games. The heavy
+    lifting (row-locked, race-free seat + role claim, promotion to READY when
+    the lobby fills) lives in :class:`AutoRoleAssignmentService`; here we only
+    present the outcome and notify the creator once everyone is assigned.
+    """
+    try:
+        role = await services.auto_assignment.assign_for_player(
+            game_id=game_id, user_id=user_id
+        )
+    except DomainError as exc:
+        await message.answer(f"⚠️ {exc.message_fa}")
+        return
+
+    await message.answer(
+        texts.role_reveal(role),
+        reply_markup=build_player_lobby_keyboard(
+            game_id=game_id, has_number=True, has_role=True
+        ),
+    )
+
+    # If that join completed the lobby, the service promoted the game to READY;
+    # let the creator know everyone now has a role.
+    try:
+        state = await services.lobby.get_lobby_state(game_id=game_id)
+        if state.all_assigned:
+            await _notify_creator_all_assigned(
+                bot=bot, services=services, game_id=game_id
+            )
+    except DomainError:
+        pass
+
 
 # --- Refresh / check-turn ----------------------------------------------------
+
 
 
 @router.callback_query(LobbyActionCB.filter(F.action == "checkturn"))
@@ -222,6 +335,7 @@ async def on_number_pick(
     callback_data: NumberPickCB,
     state: FSMContext,
     services: ServiceProvider,
+    bot: Bot,
 ) -> None:
     """Claim the chosen seat number (turn- and race-checked in the service)."""
     user_id = callback.from_user.id
@@ -241,6 +355,14 @@ async def on_number_pick(
             user_id=user_id,
             edit_message=callback.message,  # type: ignore[arg-type]
         )
+        # Losing the race means the numbers set changed under this player; make
+        # sure everyone else's picker is refreshed too.
+        await broadcast_lobby_sync(
+            bot=bot,
+            services=services,
+            game_id=callback_data.game_id,
+            exclude_user_id=user_id,
+        )
         return
 
     await callback.message.edit_text(  # type: ignore[union-attr]
@@ -250,6 +372,22 @@ async def on_number_pick(
         ),
     )
     await callback.answer("شماره ثبت شد ✅")
+
+    # This player's own live message is now the "get role" screen; remember it
+    # and push the shrunken number set to everyone else still waiting.
+    await _remember_lobby_message(
+        services=services,
+        game_id=callback_data.game_id,
+        user_id=user_id,
+        message=callback.message,  # type: ignore[arg-type]
+    )
+    await broadcast_lobby_sync(
+        bot=bot,
+        services=services,
+        game_id=callback_data.game_id,
+        exclude_user_id=user_id,
+    )
+
 
 
 # --- Step 3: get / view role, leave -----------------------------------------
@@ -281,6 +419,12 @@ async def on_assign_role(
     )
     await callback.answer("نقش شما مشخص شد 🎭")
 
+    # This player left the waiting pool; make sure the live-sync bookkeeping no
+    # longer targets their (now role-reveal) message.
+    await services.live_sync.clear_lobby_message(
+        game_id=callback_data.game_id, user_id=user_id
+    )
+
     # Advance the turn: proactively ping the next player in line.
     if result.next_user_id is not None:
         await _notify_next_player(
@@ -293,6 +437,16 @@ async def on_assign_role(
         await _notify_creator_all_assigned(
             bot=bot, services=services, game_id=callback_data.game_id
         )
+
+    # The turn advanced: push the "it's your turn" screen to whoever is now up,
+    # plus refresh the "not your turn" screens for the rest.
+    await broadcast_lobby_sync(
+        bot=bot,
+        services=services,
+        game_id=callback_data.game_id,
+        exclude_user_id=user_id,
+    )
+
 
 
 async def _notify_next_player(*, bot: Bot, next_user_id: int, game_id: int) -> None:
@@ -369,6 +523,11 @@ async def on_leave(
     await callback.message.edit_text("🚪 شما از بازی خارج شدید.")  # type: ignore[union-attr]
     await callback.answer()
 
+    # The leaver's message must no longer be treated as a live lobby screen.
+    await services.live_sync.clear_lobby_message(
+        game_id=callback_data.game_id, user_id=user_id
+    )
+
     # If a departure re-opened someone's turn, ping the current-turn player.
     try:
         turn = await services.lobby.get_turn_state(game_id=callback_data.game_id)
@@ -380,3 +539,13 @@ async def on_leave(
             )
     except DomainError:
         pass
+
+    # A departure changes the shared lobby for everyone (counter shrinks, seats
+    # free up, the turn may re-point): refresh all remaining waiting screens.
+    await broadcast_lobby_sync(
+        bot=bot,
+        services=services,
+        game_id=callback_data.game_id,
+        exclude_user_id=user_id,
+    )
+

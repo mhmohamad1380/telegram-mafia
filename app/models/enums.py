@@ -20,7 +20,24 @@ class GameStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"       # Aborted before finishing
 
 
+class RoleMode(str, enum.Enum):
+    """How players receive their roles within a game.
+
+    * ``MANUAL_ROLE_SELECTION`` — the classic, turn-based flow: the lobby must
+      fill, then players act one at a time to pick a seat number and *draw* a
+      random role. This is the default and is unchanged by the auto feature.
+    * ``AUTO_ROLE_ASSIGNMENT`` — the instant the player joins they are given a
+      free seat number and a random, still-available role automatically, with no
+      waiting for the lobby to fill and no manual "get role" step. Used by the
+      owner test flow and available when a creator opts in at game creation.
+    """
+
+    MANUAL_ROLE_SELECTION = "MANUAL_ROLE_SELECTION"
+    AUTO_ROLE_ASSIGNMENT = "AUTO_ROLE_ASSIGNMENT"
+
+
 class RoleTeam(str, enum.Enum):
+
     """The alignment/team a role belongs to.
 
     ``MASON`` is a distinct group that plays *with* the city (they win when the

@@ -8,7 +8,8 @@ from sqlalchemy import BigInteger, CheckConstraint, Enum, ForeignKey, Integer, S
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base, IntPKMixin, TimestampMixin
-from app.models.enums import GameStatus
+from app.models.enums import GameStatus, RoleMode
+
 
 if TYPE_CHECKING:
     from app.models.game_player import GamePlayer
@@ -56,6 +57,15 @@ class Game(Base, IntPKMixin, TimestampMixin):
         index=True,
         nullable=False,
     )
+    # How players receive their roles: the classic manual, turn-based draw
+    # (default) or automatic assignment on join. See :class:`RoleMode`.
+    role_mode: Mapped[RoleMode] = mapped_column(
+        Enum(RoleMode, name="role_mode", native_enum=True),
+        default=RoleMode.MANUAL_ROLE_SELECTION,
+        server_default=RoleMode.MANUAL_ROLE_SELECTION.value,
+        nullable=False,
+    )
+
 
     # Relationships
     creator: Mapped["User"] = relationship(

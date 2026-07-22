@@ -90,6 +90,31 @@ class GamePlayerRepository(BaseRepository[GamePlayer]):
         )
         return list(result.scalars().all())
 
+    async def list_awaiting_turn(self, game_id: int) -> list[GamePlayer]:
+        """Return players who still need their lobby screen kept in sync.
+
+        These are the *eligible* recipients of a live update: active players who
+        have **not** yet received a role (``JOINED`` or ``NUMBERED``) and whose
+        lobby message has been rendered at least once (so there is something to
+        edit). Players who already have a role, or who left, are excluded — they
+        must never receive a lobby refresh. The ``user`` relationship is eagerly
+        loaded so the caller can address each player without a lazy load.
+        """
+        result = await self.session.execute(
+            select(GamePlayer)
+            .where(
+                GamePlayer.game_id == game_id,
+                GamePlayer.status.in_(
+                    (PlayerStatus.JOINED, PlayerStatus.NUMBERED)
+                ),
+                GamePlayer.lobby_message_id.is_not(None),
+            )
+            .options(selectinload(GamePlayer.user))
+            .order_by(GamePlayer.join_order.asc().nulls_last())
+        )
+        return list(result.scalars().all())
+
+
     async def count_active(self, game_id: int) -> int:
 
         """Count players currently occupying a seat in the game."""

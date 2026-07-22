@@ -52,7 +52,9 @@ class TurnManagerService:
                 creator_id=game.creator_id,
                 player_count=game.player_count,
                 status=game.status,
+                role_mode=game.role_mode,
             ),
+
             lobby_complete=complete,
             joined_count=joined,
             current_user_id=current.user_id if current else None,

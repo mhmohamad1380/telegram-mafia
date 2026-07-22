@@ -13,10 +13,12 @@ from app.schemas.game import (
     LobbyStateDTO,
     PlayerRoleDTO,
     TeamCompositionDTO,
+    TestFlowReportDTO,
     TurnStateDTO,
     UserGameDetailDTO,
     UserGameSummaryDTO,
 )
+
 from app.utils.codes import to_persian_digits
 from app.utils.role_catalog import TEAM_LABELS_FA
 
@@ -413,6 +415,53 @@ def confirm_delete_custom_role(role: CustomRoleDTO) -> str:
 
 def custom_role_deleted(name_fa: str) -> str:
     return f"🗑 نقش سفارشی «{name_fa}» حذف شد."
+
+
+# --- "🧪 تست کامل بازی" (owner-only end-to-end self-test) --------------------
+
+OWNER_TEST_INTRO = (
+    "🧪 <b>تست کامل بازی</b>\n\n"
+    "این ابزار یک بازی کامل را با بازیکنان آزمایشی و به‌صورت خودکار اجرا می‌کند تا "
+    "از سالم بودن کل مسیر (ساخت بازی، تنظیم سناریو، ورود بازیکنان، تخصیص نقش و "
+    "شروع بازی) مطمئن شوید.\n\n"
+    "⏳ در حال اجرای تست…"
+)
+
+
+def owner_test_report(report: TestFlowReportDTO) -> str:
+    """Render the owner test-flow result card from a structured report."""
+    header = "✅ <b>تست با موفقیت انجام شد</b>" if report.success else (
+        "❌ <b>تست ناموفق بود</b>"
+    )
+    lines = ["🧪 <b>نتیجهٔ تست کامل بازی</b>\n", header, ""]
+
+    for step in report.steps:
+        icon = "✅" if step.ok else "❌"
+        line = f"{icon} {step.label}"
+        if step.detail and not step.ok:
+            line += f"\n   ↳ {step.detail}"
+        lines.append(line)
+
+    lines.append("")
+    if report.game_code:
+        lines.append(f"🔑 کد بازی: <code>{report.game_code}</code>")
+    if report.player_count:
+        lines.append(f"👥 بازیکنان: {to_persian_digits(report.player_count)} نفر")
+    if report.scenario_code:
+        lines.append(f"🎬 سناریو: {report.scenario_code}")
+    if report.success:
+        lines.append(
+            f"🏙️ شهر: {to_persian_digits(report.citizen_count)} | "
+            f"🔪 مافیا: {to_persian_digits(report.mafia_count)} | "
+            f"🎲 مستقل: {to_persian_digits(report.independent_count)}"
+        )
+    elif report.failed_step:
+        lines.append(f"\n⚠️ مرحلهٔ ناموفق: <b>{report.failed_step}</b>")
+        if report.error:
+            lines.append(f"📄 خطا: {report.error}")
+
+    return "\n".join(lines)
+
 
 
 
