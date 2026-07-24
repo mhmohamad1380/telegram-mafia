@@ -37,9 +37,14 @@ def build_role_mode_keyboard() -> InlineKeyboardMarkup:
         callback_data=RoleModeCB(mode=RoleMode.MANUAL_ROLE_SELECTION.value),
     )
     builder.button(
+        text="📱 تک‌دستگاه (گوشی دست‌به‌دست)",
+        callback_data=RoleModeCB(mode=RoleMode.SINGLE_DEVICE.value),
+    )
+    builder.button(
         text="↩️ انتخاب سناریوی دیگر",
         callback_data=ScenarioPickCB(code="__back__"),
     )
+
     builder.adjust(1)
     return builder.as_markup()
 

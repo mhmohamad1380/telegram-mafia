@@ -54,7 +54,28 @@ class RoleModeCB(CallbackData, prefix="rmode"):
 
 
 
+class SingleDeviceCB(CallbackData, prefix="sdev"):
+    """Actions on the shared single-device ("pass-the-phone") screen.
+
+    All taps happen on the creator's device, so these callbacks are authorised
+    by game ownership rather than by the tapping user's identity.
+
+    ``action`` is one of:
+        * ``"pick"``   — the current player claims seat ``number`` (draws a role)
+        * ``"hide"``   — hide the just-revealed role and advance to the next seat
+        * ``"start"``  — begin the game once every seat is filled
+        * ``"finish"`` — end the game
+        * ``"cancel"`` — abort setup
+    ``number`` is the chosen seat (0 when not applicable).
+    """
+
+    game_id: int
+    action: str
+    number: int = 0
+
+
 class ScenarioInfoCB(CallbackData, prefix="scinfo"):
+
     """Paginated scenario encyclopaedia navigation ("📚 سناریوها").
 
     ``action`` is one of:

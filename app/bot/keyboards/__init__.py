@@ -8,8 +8,11 @@ from app.bot.keyboards.game import (
     build_player_count_keyboard,
     build_player_lobby_keyboard,
     build_role_selection_keyboard,
+    build_single_device_reveal_keyboard,
+    build_single_device_seats_keyboard,
     build_waiting_keyboard,
 )
+
 from app.bot.keyboards.custom_role import (
     CUSTOM_ROLE_TEAMS,
     TEAM_LABEL_FA,
@@ -65,7 +68,10 @@ __all__ = [
     "build_player_count_keyboard",
     "build_player_lobby_keyboard",
     "build_role_selection_keyboard",
+    "build_single_device_reveal_keyboard",
+    "build_single_device_seats_keyboard",
     "build_waiting_keyboard",
+
     "build_main_menu_keyboard",
     "build_role_index_keyboard",
     "build_role_page_keyboard",

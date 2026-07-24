@@ -15,6 +15,8 @@ class CreateGameStates(StatesGroup):
     choose_roles = State()         # Selecting roles via inline keyboard
     confirm_summary = State()      # Reviewing the auto-completed composition
     waiting_players = State()      # Roles configured; lobby open
+    single_device = State()        # Pass-the-phone: seats drawn on one device
+
 
 
 

@@ -261,6 +261,54 @@ def roles_catalog(items: Sequence[GamePlayerDTO]) -> str:  # pragma: no cover
     return ""
 
 
+# --- Single-device ("pass-the-phone") mode ----------------------------------
+
+
+def single_device_screen(*, taken: int, total: int) -> str:
+    """Shared single-device screen prompting the next player to pick a seat.
+
+    Rendered on the creator's device; the phone is passed physically from player
+    to player. Shows progress and reminds whoever holds the phone to keep their
+    role secret.
+    """
+    remaining = total - taken
+    if remaining <= 0:
+        return (
+            "📱 <b>بازی تک‌دستگاه</b>\n\n"
+            f"✅ همهٔ {to_persian_digits(total)} نفر شماره و نقش گرفتند.\n"
+            "برای شروع بازی دکمهٔ «▶️ شروع بازی» را بزنید."
+        )
+    return (
+        "📱 <b>بازی تک‌دستگاه</b>\n\n"
+        f"👥 نفرات: {to_persian_digits(taken)} از {to_persian_digits(total)}\n"
+        f"⏳ باقی‌مانده: {to_persian_digits(remaining)} نفر\n\n"
+        "🔁 گوشی را به نفر بعدی بدهید.\n"
+        "او یکی از شماره‌های زیر را انتخاب می‌کند، نقشش را <b>مخفیانه</b> می‌بیند، "
+        "سپس دکمهٔ «🙈 پنهان کن» را می‌زند و گوشی را به نفر بعد می‌دهد."
+    )
+
+
+def single_device_reveal(role: PlayerRoleDTO, *, number: int) -> str:
+    """Private role reveal on the shared screen for the player who just picked.
+
+    Emphasises secrecy since everyone is looking at the same device.
+    """
+    return (
+        f"🔢 <b>بازیکن شمارهٔ {to_persian_digits(number)}</b>\n\n"
+        "🤫 فقط خودت نگاه کن! بقیه نبینند.\n\n"
+        f"🎭 نقش تو: <b>{role.name_fa}</b>\n\n"
+
+        "وقتی خوب دیدی و به‌خاطر سپردی، «🙈 پنهان کن و گوشی را بده به نفر بعد» را بزن."
+    )
+
+
+SINGLE_DEVICE_ALL_DONE = (
+    "✅ <b>همهٔ بازیکنان نقش گرفتند.</b>\n\n"
+    "برای شروع بازی «▶️ شروع بازی» را بزنید."
+)
+
+
+
 # --- Role encyclopaedia ("📖 توضیح نقش‌ها") ----------------------------------
 
 ROLE_INFO_INTRO = (

@@ -38,6 +38,14 @@ class RoleMode(str, enum.Enum):
     #: seat + random role immediately (idempotent), with no waiting for the lobby
     #: to fill and no FIFO turn. The role pool is auto-completed on first reveal.
     INSTANT_ROLE = "INSTANT_ROLE"
+    #: Single-device "pass-the-phone" mode. Everyone plays on the *creator's*
+    #: device: there is no join code and no remote joining. On the creator's
+    #: screen each player in turn taps a free seat number, privately sees their
+    #: random role, then hands the phone to the next player. Seat + role are
+    #: claimed atomically per tap; the game becomes READY once every seat is
+    #: filled.
+    SINGLE_DEVICE = "SINGLE_DEVICE"
+
 
 
 

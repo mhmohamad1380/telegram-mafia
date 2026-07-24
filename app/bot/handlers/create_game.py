@@ -38,7 +38,9 @@ from app.bot.keyboards import (
     build_role_selection_keyboard,
     build_scenario_count_keyboard,
     build_scenario_picker_keyboard,
+    build_single_device_seats_keyboard,
 )
+
 
 from app.bot.states import CreateGameStates
 from app.config.logging import get_logger
@@ -541,10 +543,33 @@ async def on_summary_finalize(
         await callback.answer(exc.message_fa, show_alert=True)
         return
 
+    # Single-device games never expose a join code: instead the creator's screen
+    # becomes the shared "pass-the-phone" seat grid where each player draws their
+    # role in turn.
+    if game.role_mode is RoleMode.SINGLE_DEVICE:
+        await state.set_state(CreateGameStates.single_device)
+        await state.update_data(game_id=game.id)
+        sd_state = await services.single_device.get_state(
+            game_id=game.id, creator_telegram_id=callback.from_user.id
+        )
+        await callback.message.edit_text(  # type: ignore[union-attr]
+            texts.single_device_screen(
+                taken=len(sd_state.taken_numbers), total=sd_state.player_count
+            ),
+            reply_markup=build_single_device_seats_keyboard(
+                game_id=game.id,
+                free_numbers=list(sd_state.free_numbers),
+                can_start=sd_state.all_filled,
+            ),
+        )
+        await callback.answer("بازی تک‌دستگاه ساخته شد ✅")
+        return
+
     await state.set_state(CreateGameStates.waiting_players)
     await state.update_data(game_id=game.id)
     await callback.message.edit_text(texts.game_created(game))  # type: ignore[union-attr]
     await callback.answer("بازی ساخته شد ✅")
+
 
 
 # --- Helpers ----------------------------------------------------------------

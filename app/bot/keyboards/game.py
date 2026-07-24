@@ -19,7 +19,9 @@ from app.bot.callbacks import (
     PlayerCountCB,
     RoleSetupActionCB,
     RoleToggleCB,
+    SingleDeviceCB,
 )
+
 from app.schemas.game import CustomRoleDTO, RoleCatalogItemDTO
 from app.utils.role_catalog import TEAM_LABELS_FA
 from app.utils.codes import to_persian_digits
@@ -248,7 +250,57 @@ def build_creator_lobby_keyboard(
     return builder.as_markup()
 
 
+def build_single_device_seats_keyboard(
+    *, game_id: int, free_numbers: Sequence[int], can_start: bool
+) -> InlineKeyboardMarkup:
+    """Shared single-device screen: a grid of the remaining free seat numbers.
+
+    Only unclaimed seats are shown, so a number vanishes once someone has taken
+    it. When every seat is filled a "شروع بازی" button appears; a cancel button
+    is always available.
+    """
+    builder = InlineKeyboardBuilder()
+    for number in free_numbers:
+        builder.button(
+            text=to_persian_digits(number),
+            callback_data=SingleDeviceCB(
+                game_id=game_id, action="pick", number=number
+            ),
+        )
+    builder.adjust(5)
+    if can_start:
+        builder.row(
+            InlineKeyboardButton(
+                text="▶️ شروع بازی",
+                callback_data=SingleDeviceCB(game_id=game_id, action="start").pack(),
+            )
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="❌ لغو بازی",
+            callback_data=SingleDeviceCB(game_id=game_id, action="cancel").pack(),
+        )
+    )
+    return builder.as_markup()
+
+
+def build_single_device_reveal_keyboard(*, game_id: int) -> InlineKeyboardMarkup:
+    """Role-reveal screen: a single "hide & pass the phone" button.
+
+    Tapping it clears the revealed role from the screen and returns to the seat
+    grid so the phone can be safely handed to the next player.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🙈 پنهان کن و گوشی را بده به نفر بعد",
+        callback_data=SingleDeviceCB(game_id=game_id, action="hide"),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def build_in_game_keyboard(*, game_id: int) -> InlineKeyboardMarkup:
+
     """Creator controls once the game is in progress."""
     builder = InlineKeyboardBuilder()
     builder.button(

@@ -18,7 +18,9 @@ from app.bot.handlers import (
     join_game,
     owner_test,
     scenario_info,
+    single_device,
 )
+
 
 
 
@@ -36,9 +38,11 @@ def get_main_router() -> Router:
 
 
     router.include_router(create_game.router)
+    router.include_router(single_device.router)
     router.include_router(join_game.router)
     router.include_router(game_control.router)
     return router
+
 
 
 

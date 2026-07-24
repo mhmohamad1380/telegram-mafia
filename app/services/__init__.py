@@ -37,7 +37,9 @@ from app.services.role_info_service import RoleInfoService
 from app.services.role_service import RoleService
 from app.services.roster_service import RosterService
 from app.services.scenario_service import ScenarioService
+from app.services.single_device_service import SingleDeviceService
 from app.services.turn_manager_service import TurnManagerService
+
 
 from app.services.user_games_service import UserGamesService
 
@@ -102,6 +104,11 @@ class ServiceProvider:
     @cached_property
     def auto_assignment(self) -> AutoRoleAssignmentService:
         return AutoRoleAssignmentService(self._repos, self.assignments, self.games)
+
+    @cached_property
+    def single_device(self) -> SingleDeviceService:
+        return SingleDeviceService(self._repos, self.assignments, self.games)
+
 
     @cached_property
     def fake_users(self) -> FakeUserService:
@@ -174,7 +181,9 @@ __all__ = [
     "RoleService",
     "RosterService",
     "ScenarioService",
+    "SingleDeviceService",
     "TurnManagerService",
+
     "UserGamesService",
 ]
 
