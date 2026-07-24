@@ -7,8 +7,10 @@ the always-available main menu so users never have to type commands.
 
 from __future__ import annotations
 
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
+
+from app.miniapp.config import get_miniapp_config
 
 # Button captions. Centralised here so the handlers that match them (in
 # ``handlers/common.py``) and the keyboard builder never drift apart.
@@ -19,6 +21,7 @@ BTN_SCENARIOS = "📚 سناریوها"
 BTN_MY_GAMES = "📂 بازی‌های من"
 BTN_GAME_HISTORY = "📜 تاریخچه بازی‌ها"
 BTN_CUSTOM_ROLES = "🛠 نقش‌های من"
+BTN_LIVE_TABLE = "📱 میز آنلاین"
 
 BTN_OWNER_TEST = "🧪 تست کامل بازی"
 BTN_CANCEL = "❌ لغو عملیات"
@@ -33,13 +36,11 @@ MAIN_MENU_BUTTONS: frozenset[str] = frozenset(
         BTN_MY_GAMES,
         BTN_GAME_HISTORY,
         BTN_CUSTOM_ROLES,
+        BTN_LIVE_TABLE,
         BTN_OWNER_TEST,
-
         BTN_CANCEL,
     }
 )
-
-
 
 
 def build_main_menu_keyboard(*, is_owner: bool = False) -> ReplyKeyboardMarkup:
@@ -50,6 +51,10 @@ def build_main_menu_keyboard(*, is_owner: bool = False) -> ReplyKeyboardMarkup:
     true, an extra owner-only «🧪 تست کامل بازی» button is appended so the bot
     owner can run the end-to-end self-test straight from the menu; regular users
     never see it.
+
+    When ``MINIAPP_URL`` is configured, a «📱 میز آنلاین» button is added that
+    launches the Telegram Mini App (the online voice-table client) directly
+    inside Telegram via a :class:`WebAppInfo` button.
     """
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text=BTN_CREATE_GAME))
@@ -62,6 +67,18 @@ def build_main_menu_keyboard(*, is_owner: bool = False) -> ReplyKeyboardMarkup:
     # [create | join] [roles | scenarios] [my games | history] [custom roles] ...
     layout = [2, 2, 2, 1]
 
+    # The Mini App button only works over HTTPS; only surface it when a public
+    # URL has been configured (otherwise Telegram rejects the button).
+    miniapp_url = get_miniapp_config().miniapp_url
+    if miniapp_url:
+        builder.add(
+            KeyboardButton(
+                text=BTN_LIVE_TABLE,
+                web_app=WebAppInfo(url=miniapp_url),
+            )
+        )
+        layout.append(1)  # [live table]
+
     if is_owner:
         builder.add(KeyboardButton(text=BTN_OWNER_TEST))
         layout.append(1)  # [owner test]
@@ -69,11 +86,8 @@ def build_main_menu_keyboard(*, is_owner: bool = False) -> ReplyKeyboardMarkup:
     layout.append(1)  # [cancel]
     builder.adjust(*layout)
 
-
-
     return builder.as_markup(
         resize_keyboard=True,
         is_persistent=True,
         input_field_placeholder="یک گزینه را انتخاب کنید…",
     )
-
