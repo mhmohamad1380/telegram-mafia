@@ -20,8 +20,10 @@ from app.services.custom_role_service import CustomRoleService
 from app.services.fake_user_service import FakeUserService
 
 
+from app.services.game_history_service import GameHistoryService
 from app.services.game_management_service import GameManagementService
 from app.services.game_service import GameService
+
 
 from app.services.live_sync_service import LiveGameSyncService
 from app.services.lobby_service import LobbyService
@@ -135,6 +137,11 @@ class ServiceProvider:
         return GameManagementService(self._repos)
 
     @cached_property
+    def game_history(self) -> GameHistoryService:
+        return GameHistoryService(self._repos)
+
+
+    @cached_property
     def custom_roles(self) -> CustomRoleService:
         return CustomRoleService(self._repos)
 
@@ -153,8 +160,10 @@ __all__ = [
     "FakeUserService",
 
 
+    "GameHistoryService",
     "GameManagementService",
     "GameService",
+
     "LiveGameSyncService",
     "LobbyService",
 

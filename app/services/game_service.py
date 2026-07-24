@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime, timezone
 
 from app.config.logging import get_logger
+
 
 from app.models.enums import GameEventType, GameStatus, RoleMode
 from app.models.game import Game
@@ -202,7 +204,9 @@ class GameService:
             raise InvalidGameStateError(
                 "بازی زمانی شروع می‌شود که همه بازیکنان نقش گرفته باشند."
             )
+        game.started_at = datetime.now(timezone.utc)
         await self._repos.games.update_status(game, GameStatus.IN_PROGRESS)
+
         await self._repos.events.record(
             game_id=game.id,
             event_type=GameEventType.GAME_STARTED,
@@ -216,7 +220,9 @@ class GameService:
         game = await self._get_owned_game(game_id, creator_telegram_id)
         if game.status not in (GameStatus.IN_PROGRESS, GameStatus.READY):
             raise InvalidGameStateError("این بازی قابل پایان دادن نیست.")
+        game.finished_at = datetime.now(timezone.utc)
         await self._repos.games.update_status(game, GameStatus.FINISHED)
+
         await self._repos.events.record(
             game_id=game.id,
             event_type=GameEventType.GAME_FINISHED,

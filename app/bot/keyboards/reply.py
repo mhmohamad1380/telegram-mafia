@@ -17,7 +17,9 @@ BTN_JOIN_GAME = "🎮 ورود به بازی"
 BTN_ROLE_INFO = "📖 توضیح نقش‌ها"
 BTN_SCENARIOS = "📚 سناریوها"
 BTN_MY_GAMES = "📂 بازی‌های من"
+BTN_GAME_HISTORY = "📜 تاریخچه بازی‌ها"
 BTN_CUSTOM_ROLES = "🛠 نقش‌های من"
+
 BTN_OWNER_TEST = "🧪 تست کامل بازی"
 BTN_CANCEL = "❌ لغو عملیات"
 
@@ -29,8 +31,10 @@ MAIN_MENU_BUTTONS: frozenset[str] = frozenset(
         BTN_ROLE_INFO,
         BTN_SCENARIOS,
         BTN_MY_GAMES,
+        BTN_GAME_HISTORY,
         BTN_CUSTOM_ROLES,
         BTN_OWNER_TEST,
+
         BTN_CANCEL,
     }
 )
@@ -53,9 +57,11 @@ def build_main_menu_keyboard(*, is_owner: bool = False) -> ReplyKeyboardMarkup:
     builder.add(KeyboardButton(text=BTN_ROLE_INFO))
     builder.add(KeyboardButton(text=BTN_SCENARIOS))
     builder.add(KeyboardButton(text=BTN_MY_GAMES))
+    builder.add(KeyboardButton(text=BTN_GAME_HISTORY))
     builder.add(KeyboardButton(text=BTN_CUSTOM_ROLES))
-    # [create | join] [roles | scenarios] [my games | custom roles] ...
-    layout = [2, 2, 2]
+    # [create | join] [roles | scenarios] [my games | history] [custom roles] ...
+    layout = [2, 2, 2, 1]
+
     if is_owner:
         builder.add(KeyboardButton(text=BTN_OWNER_TEST))
         layout.append(1)  # [owner test]

@@ -18,16 +18,19 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
 from app.bot import texts
-from app.bot.callbacks import MyGamesCB, RoleInfoCB
+from app.bot.callbacks import GameHistoryCB, MyGamesCB, RoleInfoCB
 from app.bot.keyboards import (
+    BTN_GAME_HISTORY,
     BTN_MY_GAMES,
     BTN_ROLE_INFO,
     build_delete_confirm_keyboard,
     build_game_detail_keyboard,
+    build_game_history_keyboard,
     build_my_games_keyboard,
     build_role_index_keyboard,
     build_role_page_keyboard,
 )
+
 from app.config.logging import get_logger
 from app.services import ServiceProvider
 from app.utils.exceptions import DomainError
@@ -200,3 +203,51 @@ async def on_my_game_delete_confirm(
 
     await callback.message.edit_text(texts.game_deleted(code))  # type: ignore[union-attr]
     await callback.answer("بازی حذف شد 🗑")
+
+
+# --- "📜 تاریخچه بازی‌ها" -----------------------------------------------------
+
+
+@router.message(F.text == BTN_GAME_HISTORY)
+async def on_menu_game_history(
+    message: Message, services: ServiceProvider
+) -> None:
+    """Show the user's finished/cancelled games (read-only history card)."""
+    entries = await services.game_history.list_for_user(
+        user_id=message.from_user.id
+    )
+    if not entries:
+        await message.answer(texts.GAME_HISTORY_EMPTY)
+        return
+    await message.answer(
+        texts.game_history_list(entries),
+        reply_markup=build_game_history_keyboard(),
+    )
+
+
+@router.callback_query(GameHistoryCB.filter(F.action == "list"))
+async def on_game_history_list(
+    callback: CallbackQuery,
+    services: ServiceProvider,
+) -> None:
+    """Re-render the history list (e.g. after navigating back)."""
+    entries = await services.game_history.list_for_user(
+        user_id=callback.from_user.id
+    )
+    if not entries:
+        await callback.message.edit_text(texts.GAME_HISTORY_EMPTY)  # type: ignore[union-attr]
+        await callback.answer()
+        return
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        texts.game_history_list(entries),
+        reply_markup=build_game_history_keyboard(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(GameHistoryCB.filter(F.action == "home"))
+async def on_game_history_home(callback: CallbackQuery) -> None:
+    """Dismiss the history card and return to the main menu prompt."""
+    await callback.message.edit_text(texts.START)  # type: ignore[union-attr]
+    await callback.answer()
+

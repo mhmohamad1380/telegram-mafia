@@ -34,6 +34,11 @@ class RoleMode(str, enum.Enum):
 
     MANUAL_ROLE_SELECTION = "MANUAL_ROLE_SELECTION"
     AUTO_ROLE_ASSIGNMENT = "AUTO_ROLE_ASSIGNMENT"
+    #: On-demand instant reveal. The player taps "🎭 مشاهده نقش" and is given a
+    #: seat + random role immediately (idempotent), with no waiting for the lobby
+    #: to fill and no FIFO turn. The role pool is auto-completed on first reveal.
+    INSTANT_ROLE = "INSTANT_ROLE"
+
 
 
 class RoleTeam(str, enum.Enum):
@@ -54,8 +59,17 @@ class RoleTeam(str, enum.Enum):
 
 
 
+class GameResult(str, enum.Enum):
+    """The per-player outcome of a finished game, used in game history."""
+
+    WIN = "WIN"
+    LOSS = "LOSS"
+    UNKNOWN = "UNKNOWN"
+
+
 class PlayerStatus(str, enum.Enum):
     """Status of a player within a game lobby."""
+
 
     JOINED = "JOINED"          # In lobby, no seat number chosen yet
     NUMBERED = "NUMBERED"      # Picked a seat number, awaiting role

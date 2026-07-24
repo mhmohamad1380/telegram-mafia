@@ -77,3 +77,29 @@ class GameRepository(BaseRepository[Game]):
         )
         return list(result.scalars().all())
 
+    async def list_history_for_user(self, user_id: int) -> list[Game]:
+        """Return finished/cancelled games the user created or played in.
+
+        This is the read model behind "📜 تاریخچه بازی‌ها": only games that have
+        reached a terminal state (``FINISHED`` or ``CANCELLED``) are included,
+        newest-first. A game qualifies when the user is its creator *or* has a
+        non-left player row in it.
+        """
+        result = await self.session.execute(
+            select(Game)
+            .outerjoin(
+                GamePlayer,
+                (GamePlayer.game_id == Game.id)
+                & (GamePlayer.user_id == user_id)
+                & (GamePlayer.status != PlayerStatus.LEFT),
+            )
+            .where(
+                Game.status.in_((GameStatus.FINISHED, GameStatus.CANCELLED)),
+                or_(Game.creator_id == user_id, GamePlayer.id.is_not(None)),
+            )
+            .order_by(Game.finished_at.desc().nulls_last(), Game.id.desc())
+            .distinct()
+        )
+        return list(result.scalars().all())
+
+

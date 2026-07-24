@@ -12,7 +12,8 @@ from collections.abc import Sequence
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.bot.callbacks import MyGamesCB, RoleInfoCB
+from app.bot.callbacks import GameHistoryCB, MyGamesCB, RoleInfoCB
+
 from app.models.enums import GameStatus
 from app.schemas.game import UserGameSummaryDTO
 from app.services.role_info_service import RoleIndexItem
@@ -130,7 +131,26 @@ def build_game_detail_keyboard(
     return builder.as_markup()
 
 
+# --- "📜 تاریخچه بازی‌ها" ------------------------------------------------------
+
+
+def build_game_history_keyboard() -> InlineKeyboardMarkup:
+    """Footer for the read-only history card: just a return-to-menu button.
+
+    History entries are informational only (no per-game drill-down), so the
+    keyboard carries a single "🏠 منوی اصلی" action that dismisses the card.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🏠 منوی اصلی",
+        callback_data=GameHistoryCB(action="home"),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
 def build_delete_confirm_keyboard(*, game_id: int) -> InlineKeyboardMarkup:
+
     """Confirm/cancel keyboard for the irreversible game deletion."""
     builder = InlineKeyboardBuilder()
     builder.button(

@@ -9,7 +9,9 @@ from app.schemas.game import (
     CustomRoleDTO,
     GameDTO,
 
+    GameHistoryEntryDTO,
     GamePlayerDTO,
+
     LobbyStateDTO,
     PlayerRoleDTO,
     TeamCompositionDTO,
@@ -461,6 +463,59 @@ def owner_test_report(report: TestFlowReportDTO) -> str:
             lines.append(f"📄 خطا: {report.error}")
 
     return "\n".join(lines)
+
+
+# --- "📜 تاریخچه بازی‌ها" -----------------------------------------------------
+
+GAME_HISTORY_EMPTY = (
+    "📜 <b>تاریخچه بازی‌ها</b>\n\n"
+    "هنوز هیچ بازی پایان‌یافته یا لغوشده‌ای ندارید.\n"
+    "پس از پایان یا لغو یک بازی، اینجا نمایش داده می‌شود."
+)
+
+GAME_HISTORY_INTRO = "📜 <b>تاریخچه بازی‌ها</b>\n"
+
+
+def _format_history_datetime(value) -> str | None:
+    """Render a timezone-aware timestamp as a compact ``YYYY-MM-DD HH:MM``.
+
+    Returns ``None`` when the timestamp is missing so callers can omit the line.
+    """
+    if value is None:
+        return None
+    return value.strftime("%Y-%m-%d %H:%M")
+
+
+def game_history_list(entries: Sequence[GameHistoryEntryDTO]) -> str:
+    """Render the full past-games history card (newest-first).
+
+    Each entry shows the join code, final status, scenario, size, the user's
+    role (creator vs. player) and seat number, plus the finish timestamp when
+    available. Player roles are intentionally never shown here.
+    """
+    from app.bot.keyboards.info import GAME_STATUS_LABELS_FA
+
+    lines: list[str] = [GAME_HISTORY_INTRO]
+    for i, e in enumerate(entries, start=1):
+        status = GAME_STATUS_LABELS_FA.get(e.status, e.status.value)
+        role_marker = "👑 سازنده" if e.is_creator else "🎮 بازیکن"
+        idx = to_persian_digits(i)
+        block = [
+            f"\n<b>{idx}.</b> 🔑 <code>{e.code}</code> — {status}",
+            f"   🎬 سناریو: {e.scenario_code} | 👥 "
+            f"{to_persian_digits(e.player_count)} نفر",
+            f"   {role_marker}",
+        ]
+        if e.my_number is not None:
+            block.append(f"   🔢 شمارهٔ شما: {to_persian_digits(e.my_number)}")
+        if e.winner_team:
+            block.append(f"   🏆 برنده: {e.winner_team}")
+        finished = _format_history_datetime(e.finished_at)
+        if finished:
+            block.append(f"   🕒 پایان: {finished}")
+        lines.append("\n".join(block))
+    return "\n".join(lines)
+
 
 
 

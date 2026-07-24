@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, CheckConstraint, Enum, ForeignKey, Integer, String
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 
 from app.database.base import Base, IntPKMixin, TimestampMixin
 from app.models.enums import GameStatus, RoleMode
@@ -66,8 +76,21 @@ class Game(Base, IntPKMixin, TimestampMixin):
         nullable=False,
     )
 
+    # --- Game history / lifecycle timestamps -------------------------------
+    # Set when the creator starts the game (status -> IN_PROGRESS).
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Set when the game finishes (status -> FINISHED).
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Optional textual note of the winning team, recorded at finish time.
+    winner_team: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
 
     # Relationships
+
     creator: Mapped["User"] = relationship(
         back_populates="created_games",
         foreign_keys=[creator_id],

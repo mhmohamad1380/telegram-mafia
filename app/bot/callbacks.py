@@ -116,7 +116,19 @@ class CustomRoleTeamCB(CallbackData, prefix="croleteam"):
     team: str
 
 
+class GameHistoryCB(CallbackData, prefix="ghist"):
+    """"📜 تاریخچه بازی‌ها" navigation.
+
+    ``action`` is one of:
+        * ``"list"`` — (re)show the history list
+        * ``"home"`` — dismiss the card / back to main menu
+    """
+
+    action: str
+
+
 class MyGamesCB(CallbackData, prefix="mygames"):
+
 
     """"📂 بازی‌های من" navigation and per-game management.
 

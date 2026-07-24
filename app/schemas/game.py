@@ -7,7 +7,10 @@ build them from ORM entities so handlers never touch SQLAlchemy objects directly
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
+
 
 from app.models.enums import (
     GameStatus,
@@ -276,9 +279,33 @@ class UserGameDetailDTO(BaseModel):
     can_delete: bool = False
 
 
+class GameHistoryEntryDTO(BaseModel):
+    """One row in the "📜 تاریخچه بازی‌ها" list: a finished/cancelled game.
+
+    Captures the immutable outcome of a past game the user participated in — its
+    code, scenario, final status, sizes, and lifecycle timestamps — so the
+    history screen renders without any live lobby lookups. Roles are never
+    included; history is a record of games played, not a role reveal.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    game_id: int
+    code: str
+    scenario_code: str
+    status: GameStatus
+    player_count: int
+    is_creator: bool
+    my_number: int | None = None
+    winner_team: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
 class TeamCompositionDTO(BaseModel):
 
     """Per-team head counts for a game's role composition."""
+
 
     model_config = ConfigDict(frozen=True)
 
