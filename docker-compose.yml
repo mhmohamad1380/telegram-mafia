@@ -56,7 +56,6 @@ services:
         limits:
           memory: 64M
 
-
   bot:
     build:
       context: .
@@ -79,14 +78,37 @@ services:
       # directly to Telegram. To route through a local proxy, set BOT_PROXY in
       # your .env, e.g. BOT_PROXY=socks5://127.0.0.1:10808
       BOT_PROXY: ${BOT_PROXY:-}
-
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-
+  # Mini App server: same image/code/DB/Redis as the bot, but runs the uvicorn
+  # process (app.miniapp.server) that serves BOTH the SPA frontend (mounted at /)
+  # and the REST + WebSocket API it talks to. Publishes an HTTP port; front it
+  # with a TLS-terminating reverse proxy (see README) — Telegram Mini Apps
+  # require HTTPS, and MINIAPP_URL must point at that public https:// origin.
+  miniapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mafia_miniapp
+    restart: unless-stopped
+    command: ["python", "-m", "app.miniapp.server"]
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: 127.0.0.1
+      REDIS_HOST: 127.0.0.1
+      MINIAPP_HOST: ${MINIAPP_HOST:-0.0.0.0}
+      MINIAPP_PORT: ${MINIAPP_PORT:-8080}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

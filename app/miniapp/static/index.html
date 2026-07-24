@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>میز آنلاین مافیا</title>
+  <!-- Telegram Mini App SDK: exposes window.Telegram.WebApp (initData, theme, …) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #0f1115);
+      --card: var(--tg-theme-secondary-bg-color, #1b1f27);
+      --fg: var(--tg-theme-text-color, #f2f2f2);
+      --muted: var(--tg-theme-hint-color, #8a93a2);
+      --accent: var(--tg-theme-button-color, #3b82f6);
+      --accent-fg: var(--tg-theme-button-text-color, #fff);
+      --danger: #e5484d;
+      --ok: #30a46c;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Vazirmatn", sans-serif;
+      min-height: 100vh; padding: 12px; padding-bottom: 90px;
+    }
+    h1 { font-size: 17px; margin: 0 0 2px; }
+    .sub { color: var(--muted); font-size: 12px; }
+    .card { background: var(--card); border-radius: var(--radius); padding: 14px; margin: 10px 0; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row.wrap { flex-wrap: wrap; }
+    .spacer { flex: 1; }
+    button {
+      background: var(--accent); color: var(--accent-fg); border: 0;
+      border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: opacity .15s; font-family: inherit;
+    }
+    button:active { opacity: .7; }
+    button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--muted); }
+    button.danger { background: var(--danger); }
+    button.ok { background: var(--ok); }
+    button:disabled { opacity: .4; cursor: default; }
+    input {
+      background: var(--bg); color: var(--fg); border: 1px solid var(--muted);
+      border-radius: 10px; padding: 12px; font-size: 18px; width: 100%;
+      text-align: center; letter-spacing: 6px; font-family: inherit;
+    }
+    .hidden { display: none !important; }
+
+    /* Table: seats laid out in a responsive grid */
+    #seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+    .seat {
+      background: var(--bg); border: 1px solid transparent; border-radius: 12px;
+      padding: 10px 6px; text-align: center; position: relative; cursor: pointer;
+    }
+    .seat .num { font-size: 20px; font-weight: 700; }
+    .seat .name { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .seat.speaking { border-color: var(--ok); box-shadow: 0 0 0 2px var(--ok) inset; }
+    .seat.me { border-color: var(--accent); }
+    .seat.dead { opacity: .38; }
+    .seat.selected { outline: 2px solid var(--accent); }
+    .seat .tag { position: absolute; top: 4px; inset-inline-start: 4px; font-size: 10px; }
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--card); color: var(--muted); }
+
+    /* Timer + phase banner */
+    #banner { display: flex; align-items: center; gap: 12px; }
+    #timer { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    #phase { font-size: 13px; color: var(--muted); }
+    #mic-state { font-size: 12px; }
+
+    .grid-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .toast {
+      position: fixed; left: 12px; right: 12px; bottom: 16px; z-index: 50;
+      background: var(--card); color: var(--fg); border-radius: 12px; padding: 12px 14px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.4); font-size: 14px; text-align: center;
+    }
+    .section-title { font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
+  </style>
+</head>
+<body>
+  <!-- ============ JOIN SCREEN ============ -->
+  <div id="screen-join" class="card">
+    <h1>ورود به میز آنلاین</h1>
+    <p class="sub">کد ۶ رقمی بازی را که سازنده به شما داده وارد کنید.</p>
+    <input id="code-input" inputmode="numeric" maxlength="6" placeholder="------" />
+    <div style="height:10px"></div>
+    <button id="join-btn" style="width:100%">ورود به میز</button>
+  </div>
+
+  <!-- ============ TABLE SCREEN ============ -->
+  <div id="screen-table" class="hidden">
+    <div class="row">
+      <div>
+        <h1 id="t-title">میز مافیا</h1>
+        <div class="sub" id="t-sub">—</div>
+      </div>
+      <div class="spacer"></div>
+      <span class="badge" id="t-conn">در حال اتصال…</span>
+    </div>
+
+    <!-- Own role (only ever shown to me) -->
+    <div class="card" id="my-role-card">
+      <div class="section-title">نقش شما</div>
+      <div class="row">
+        <div id="my-role" style="font-size:20px;font-weight:800">—</div>
+        <div class="spacer"></div>
+        <button class="ghost" id="mic-btn">🎙 میکروفون</button>
+      </div>
+    </div>
+
+    <!-- Phase + timer banner -->
+    <div class="card">
+      <div id="banner">
+        <div id="timer">--</div>
+        <div>
+          <div id="phase">—</div>
+          <div id="mic-state" class="sub">—</div>
+        </div>
+        <div class="spacer"></div>
+        <div id="challenge-box"></div>
+      </div>
+    </div>
+
+    <!-- Seats -->
+    <div class="card">
+      <div class="section-title" id="seats-title">بازیکنان</div>
+      <div id="seats"></div>
+    </div>
+
+    <!-- Player actions -->
+    <div class="card" id="player-actions">
+      <div class="grid-btns">
+        <button id="challenge-btn" class="ghost hidden">⚔️ چالش با بازیکن انتخاب‌شده</button>
+        <button id="vote-btn" class="ghost hidden">🗳 رأی به بازیکن انتخاب‌شده</button>
+      </div>
+    </div>
+
+    <!-- Manager (creator-only) controls -->
+    <div class="card hidden" id="manager">
+      <div class="section-title">کنترل‌های مدیر بازی</div>
+      <div class="row wrap" style="margin-bottom:8px">
+        <button data-phase="day" class="ghost">☀️ روز</button>
+        <button data-phase="night" class="ghost">🌙 شب</button>
+        <button data-phase="voting" class="ghost">🗳 رأی‌گیری</button>
+        <button data-phase="defense" class="ghost">🛡 دفاع</button>
+        <button data-phase="results" class="ghost">📊 نتایج</button>
+      </div>
+      <div class="grid-btns" style="margin-bottom:8px">
+        <button id="m-turn">▶️ نوبت بازیکن انتخاب‌شده</button>
+        <button id="m-mute" class="ghost">🔇 سکوت همه</button>
+        <button id="m-pause" class="ghost">⏸ توقف زمان</button>
+        <button id="m-resume" class="ghost">▶️ ادامه زمان</button>
+        <button id="m-minus" class="ghost">−۱۵ ثانیه</button>
+        <button id="m-plus" class="ghost">+۱۵ ثانیه</button>
+      </div>
+      <button id="m-eliminate" class="danger" style="width:100%">☠️ حذف بازیکن انتخاب‌شده</button>
+    </div>
+  </div>
+
+  <script>
+  //==========================================================================
+  // Mafia Mini App client (vanilla JS). Talks to the FastAPI backend in
+  // app/miniapp: REST for reads/actions, one WebSocket for realtime pushes,
+  // and a small WebRTC mesh (signaled over that same WS) for voice.
+  //==========================================================================
+  const tg = window.Telegram?.WebApp;
+  tg?.ready();
+  tg?.expand();
+
+  // Same-origin API/WS (the SPA is served by the very server it talks to).
+  const API = location.origin;
+  const WS_BASE = API.replace(/^http/, "ws");
+  const INIT_DATA = tg?.initData || "";           // signed; server verifies HMAC
+  const AUTH = { "Authorization": "tma " + INIT_DATA, "Content-Type": "application/json" };
+
+  const $ = (id) => document.getElementById(id);
+  const state = { gameId: null, snap: null, selected: null, ws: null, micOn: false };
+
+  function toast(msg) {
+    const t = document.createElement("div");
+    t.className = "toast"; t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2600);
+  }
+
+  async function api(path, method = "GET", body) {
+    const res = await fetch(API + path, {
+      method, headers: AUTH, body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      let detail = "خطا";
+      try { detail = (await res.json()).detail || detail; } catch {}
+      throw new Error(detail);
+    }
+    return res.json();
+  }
+
+  //--- Join -----------------------------------------------------------------
+  async function join(code) {
+    const snap = await api("/api/games/join", "POST", { code });
+    state.gameId = snap.game_id;
+    enterTable(snap);
+  }
+
+  $("join-btn").onclick = async () => {
+    const code = $("code-input").value.trim();
+    if (!/^\d{6}$/.test(code)) return toast("کد باید ۶ رقم باشد.");
+    try { await join(code); } catch (e) { toast(e.message); }
+  };
+
+  // If Telegram launched us with a start param that is a 6-digit code, auto-join.
+  (function autoJoin() {
+    const p = tg?.initDataUnsafe?.start_param || "";
+    if (/^\d{6}$/.test(p)) { $("code-input").value = p; join(p).catch((e) => toast(e.message)); }
+  })();
+
+  //--- Table rendering ------------------------------------------------------
+  function enterTable(snap) {
+    $("screen-join").classList.add("hidden");
+    $("screen-table").classList.remove("hidden");
+    render(snap);
+    openWs();
+  }
+
+  function fmtTime(s) {
+    s = Math.max(0, s | 0);
+    return String((s / 60) | 0).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  const PHASE_FA = {
+    lobby: "لابی", day: "روز", night: "شب", voting: "رأی‌گیری",
+    defense: "دفاع", results: "نتایج",
+  };
+
+  function render(snap) {
+    state.snap = snap;
+    const live = snap.live || {};
+    $("t-title").textContent = "میز " + (snap.code || "");
+    $("t-sub").textContent = `${snap.player_count} بازیکن • سناریو ${snap.scenario_code} • وضعیت ${snap.status}`;
+
+    // My own role (server only fills this for my seat).
+    const me = (snap.seats || []).find((s) => s.is_self);
+    $("my-role").textContent = me?.own_role_name_fa || "—";
+
+    // Banner
+    $("timer").textContent = fmtTime(live.timer_seconds);
+    $("phase").textContent = "فاز: " + (PHASE_FA[live.phase] || live.phase || "—");
+    $("mic-state").textContent = live.muted_all
+      ? "🔇 همه در سکوت"
+      : (live.speaking_number ? `🎙 نوبت صندلی ${live.speaking_number}` : "—");
+
+    // Challenge banner
+    const cb = $("challenge-box");
+    cb.innerHTML = live.challenge
+      ? `<span class="badge">⚔️ چالش: ${live.challenge.challenger_number} ← ${live.challenge.target_number}</span>`
+      : "";
+
+    // Seats
+    const seatsEl = $("seats");
+    seatsEl.innerHTML = "";
+    for (const s of snap.seats || []) {
+      const el = document.createElement("div");
+      el.className = "seat";
+      if (live.speaking_number && s.number === live.speaking_number) el.classList.add("speaking");
+      if (s.is_self) el.classList.add("me");
+      if (s.status === "left") el.classList.add("dead");
+      if (state.selected === s.number) el.classList.add("selected");
+      const tally = snap.vote_tally && snap.vote_tally[String(s.number)];
+      el.innerHTML =
+        `<div class="num">${s.number ?? "—"}</div>` +
+        `<div class="name">${s.display_name}</div>` +
+        (s.is_creator ? `<div class="tag">👑</div>` : "") +
+        (tally ? `<div class="badge">${tally} رأی</div>` : "");
+      if (s.number) el.onclick = () => { state.selected = s.number; render(state.snap); };
+      seatsEl.appendChild(el);
+    }
+
+    // Player action buttons (challenge only if I'm the current speaker;
+    // vote only during voting).
+    const iAmSpeaker = me && live.speaking_number && me.number === live.speaking_number;
+    $("challenge-btn").classList.toggle("hidden", !(iAmSpeaker && !live.challenge));
+    $("vote-btn").classList.toggle("hidden", live.phase !== "voting");
+
+    // Manager panel
+    $("manager").classList.toggle("hidden", !snap.is_creator);
+  }
+
+  //--- WebSocket realtime ---------------------------------------------------
+  function openWs() {
+    if (state.ws) try { state.ws.close(); } catch {}
+    const ws = new WebSocket(`${WS_BASE}/ws/${state.gameId}`);
+    state.ws = ws;
+    ws.onopen = () => { ws.send(INIT_DATA); $("t-conn").textContent = "متصل"; };
+    ws.onclose = () => { $("t-conn").textContent = "قطع شد"; setTimeout(openWs, 2000); };
+    ws.onmessage = async (ev) => {
+      let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+      if (msg.type === "table") { state.gameId = msg.game_id; render(msg); }
+      else if (msg.type === "invalidate") { refetch(); }
+      else if (msg.type && msg.type.startsWith("rtc.")) { onRtcSignal(msg); }
+    };
+  }
+
+  async function refetch() {
+    try { render(await api(`/api/games/${state.gameId}`)); }
+    catch (e) { /* membership/expiry — surface quietly */ console.warn(e); }
+  }
+
+  //--- Player actions -------------------------------------------------------
+  $("challenge-btn").onclick = () => act(`/api/games/${state.gameId}/challenge`, { target: need() });
+  $("vote-btn").onclick = () => act(`/api/games/${state.gameId}/vote`, { target: need() });
+
+  function need() {
+    if (!state.selected) { toast("اول یک بازیکن را انتخاب کنید."); throw new Error("no selection"); }
+    return state.selected;
+  }
+  async function act(path, body) {
+    try { await api(path, "POST", body); } catch (e) { toast(e.message); }
+  }
+
+  //--- Manager controls -----------------------------------------------------
+  document.querySelectorAll("#manager [data-phase]").forEach((b) => {
+    b.onclick = () => act(`/api/games/${state.gameId}/manager/phase`, { phase: b.dataset.phase });
+  });
+  $("m-turn").onclick = () => act(`/api/games/${state.gameId}/manager/turn`, { number: need() });
+  $("m-mute").onclick = () => act(`/api/games/${state.gameId}/manager/mute-all`, {});
+  $("m-pause").onclick = () => act(`/api/games/${state.gameId}/manager/timer`, { running: false });
+  $("m-resume").onclick = () => act(`/api/games/${state.gameId}/manager/timer`, { running: true });
+  $("m-minus").onclick = () => act(`/api/games/${state.gameId}/manager/time`, { delta: -15 });
+  $("m-plus").onclick = () => act(`/api/games/${state.gameId}/manager/time`, { delta: 15 });
+  $("m-eliminate").onclick = () => {
+    const n = need();
+    if (confirm(`صندلی ${n} حذف شود؟`)) act(`/api/games/${state.gameId}/manager/eliminate`, { number: n });
+  };
+
+  //==========================================================================
+  // WebRTC voice mesh. The server relays rtc.* frames verbatim to the room
+  // (stamping from_user_id), so we run a small full-mesh: on mic-on we create
+  // an offer to every other connected peer; answers/ICE flow back over the WS.
+  //==========================================================================
+  const peers = new Map();       // from_user_id -> RTCPeerConnection
+  let localStream = null;
+  const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+  $("mic-btn").onclick = async () => {
+    if (state.micOn) return; // toggle-off omitted for brevity; refresh to reset
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      state.micOn = true;
+      $("mic-btn").textContent = "🎙 روشن";
+      $("mic-btn").classList.add("ok");
+      // Kick off an offer to everyone already in the room.
+      rtcSend({ type: "rtc.hello" });
+    } catch { toast("دسترسی به میکروفون داده نشد."); }
+  };
+
+  function rtcSend(obj) { try { state.ws?.send(JSON.stringify(obj)); } catch {} }
+
+  function peerFor(uid) {
+    if (peers.has(uid)) return peers.get(uid);
+    const pc = new RTCPeerConnection(ICE);
+    if (localStream) localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+    pc.onicecandidate = (e) => { if (e.candidate) rtcSend({ type: "rtc.ice", to: uid, candidate: e.candidate }); };
+    pc.ontrack = (e) => {
+      let a = document.getElementById("audio-" + uid);
+      if (!a) { a = document.createElement("audio"); a.id = "audio-" + uid; a.autoplay = true; document.body.appendChild(a); }
+      a.srcObject = e.streams[0];
+    };
+    peers.set(uid, pc);
+    return pc;
+  }
+
+  async function onRtcSignal(msg) {
+    const from = msg.from_user_id;
+    if (!from || String(from) === String(tg?.initDataUnsafe?.user?.id)) return; // ignore self
+    if (msg.to && String(msg.to) !== String(tg?.initDataUnsafe?.user?.id)) return; // not for me
+    const pc = peerFor(from);
+    if (msg.type === "rtc.hello" && state.micOn) {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      rtcSend({ type: "rtc.offer", to: from, sdp: offer });
+    } else if (msg.type === "rtc.offer") {
+      await pc.setRemoteDescription(msg.sdp);
+      const ans = await pc.createAnswer();
+      await pc.setLocalDescription(ans);
+      rtcSend({ type: "rtc.answer", to: from, sdp: ans });
+    } else if (msg.type === "rtc.answer") {
+      await pc.setRemoteDescription(msg.sdp);
+    } else if (msg.type === "rtc.ice") {
+      try { await pc.addIceCandidate(msg.candidate); } catch {}
+    }
+  }
+  </script>
+</body>
+</html>

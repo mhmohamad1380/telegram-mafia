@@ -5,6 +5,11 @@ storage and pub/sub fan-out), the :class:`RealtimeHub`, and a background
 one-second timer loop that ticks every active table's speaking clock. The same
 settings/logging/DB stack as the bot is reused verbatim — this is a second
 *transport* over the existing core, not a second application.
+
+It also serves the Mini App **frontend**: the compiled single-page client in
+``app/miniapp/static`` is mounted at ``/`` so one deployable serves both the UI
+Telegram loads and the API/WebSocket that UI talks to (same origin ⇒ no CORS
+headaches, and the WebSocket lives on the very host that served the page).
 """
 
 from __future__ import annotations
@@ -12,10 +17,12 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from redis.asyncio import Redis
 from starlette.requests import Request
 
@@ -31,6 +38,9 @@ from app.services import ServiceProvider
 from app.utils.exceptions import DomainError
 
 logger = get_logger(__name__)
+
+#: Directory holding the Mini App frontend (index.html + assets), served at ``/``.
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 async def _timer_loop(app: FastAPI) -> None:
@@ -131,5 +141,25 @@ def create_app() -> FastAPI:
         """Translate domain errors into 400s carrying the Persian message."""
         return JSONResponse(status_code=400, content={"detail": exc.message_fa})
 
+    # API + WebSocket routes take precedence, then the SPA is mounted last so it
+    # only catches paths the API didn't claim.
     app.include_router(router)
+
+    @app.get("/", include_in_schema=False)
+    async def _spa_index() -> FileResponse:
+        """Serve the Mini App shell (Telegram opens this as the WebApp URL)."""
+        return FileResponse(STATIC_DIR / "index.html")
+
+    if STATIC_DIR.is_dir():
+        # ``html=True`` makes StaticFiles fall back to index.html, so any client
+        # -side route deep-link still boots the SPA. Mounted at the end so it
+        # never shadows ``/api`` or ``/ws``.
+        app.mount(
+            "/",
+            StaticFiles(directory=STATIC_DIR, html=True),
+            name="static",
+        )
+    else:  # pragma: no cover - only in a mis-built image
+        logger.warning("miniapp_static_missing", path=str(STATIC_DIR))
+
     return app
