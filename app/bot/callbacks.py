@@ -40,6 +40,20 @@ class PlayerCountCB(CallbackData, prefix="pcount"):
     count: int
 
 
+class RoleModeCB(CallbackData, prefix="rmode"):
+    """Pick how roles are handed out during the create-game wizard.
+
+    ``mode`` is a :class:`~app.models.enums.RoleMode` value:
+        * ``MANUAL_ROLE_SELECTION`` — classic turn-based draw after the lobby
+          fills.
+        * ``AUTO_ROLE_ASSIGNMENT`` — every player gets a seat + random role the
+          instant they join, with no waiting for others.
+    """
+
+    mode: str
+
+
+
 class ScenarioInfoCB(CallbackData, prefix="scinfo"):
     """Paginated scenario encyclopaedia navigation ("📚 سناریوها").
 

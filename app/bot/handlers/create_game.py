@@ -27,12 +27,14 @@ from aiogram.types import CallbackQuery, Message
 from app.bot import texts
 from app.bot.callbacks import (
     PlayerCountCB,
+    RoleModeCB,
     RoleSetupActionCB,
     RoleToggleCB,
     ScenarioPickCB,
 )
 from app.bot.keyboards import (
     build_composition_summary_keyboard,
+    build_role_mode_keyboard,
     build_role_selection_keyboard,
     build_scenario_count_keyboard,
     build_scenario_picker_keyboard,
@@ -40,7 +42,8 @@ from app.bot.keyboards import (
 
 from app.bot.states import CreateGameStates
 from app.config.logging import get_logger
-from app.models.enums import RoleCode
+from app.models.enums import RoleCode, RoleMode
+
 from app.scenarios import format_scenario_composition, format_scenario_overview
 from app.schemas.game import CompositionResultDTO
 from app.services import ServiceProvider
@@ -101,8 +104,45 @@ async def on_scenario_pick(
         await callback.answer(exc.message_fa, show_alert=True)
         return
 
-    await state.set_state(CreateGameStates.choose_player_count)
+    await state.set_state(CreateGameStates.choose_role_mode)
     await state.update_data(scenario_code=scenario.code)
+    overview = format_scenario_overview(scenario)
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        f"{overview}\n\n{texts.ASK_ROLE_MODE}",
+        reply_markup=build_role_mode_keyboard(),
+    )
+    await callback.answer()
+
+
+# --- Step 1b: role delivery mode --------------------------------------------
+
+
+@router.callback_query(CreateGameStates.choose_role_mode, RoleModeCB.filter())
+async def on_role_mode_pick(
+    callback: CallbackQuery,
+    callback_data: RoleModeCB,
+    state: FSMContext,
+    services: ServiceProvider,
+) -> None:
+    """Record the chosen role-delivery mode, then ask for the player count.
+
+    ``AUTO_ROLE_ASSIGNMENT`` gives each player a seat + random role the instant
+    they join (no waiting); ``MANUAL_ROLE_SELECTION`` keeps the classic
+    turn-based draw. The choice is stashed in the FSM and applied when the game
+    is created in :func:`_begin_after_count`.
+    """
+    try:
+        role_mode = RoleMode(callback_data.mode)
+    except ValueError:
+        await callback.answer("حالت نامعتبر است.", show_alert=True)
+        return
+
+    data = await state.get_data()
+    scenario_code: str = data.get("scenario_code", "classic")
+    scenario = services.scenarios.get_scenario(scenario_code)
+
+    await state.set_state(CreateGameStates.choose_player_count)
+    await state.update_data(role_mode=role_mode.value)
     overview = format_scenario_overview(scenario)
     await callback.message.edit_text(  # type: ignore[union-attr]
         f"{overview}\n\n{texts.ASK_PLAYER_COUNT}",
@@ -112,6 +152,7 @@ async def on_scenario_pick(
 
 
 # --- Step 2: player count ---------------------------------------------------
+
 
 
 @router.callback_query(CreateGameStates.choose_player_count, PlayerCountCB.filter())
@@ -178,6 +219,9 @@ async def _begin_after_count(
     """
     data = await state.get_data()
     scenario_code: str = data.get("scenario_code", "classic")
+    role_mode = RoleMode(
+        data.get("role_mode", RoleMode.MANUAL_ROLE_SELECTION.value)
+    )
     try:
         scenario = services.scenarios.get_scenario(scenario_code)
         services.scenarios.validate_player_count(scenario, count)
@@ -190,7 +234,9 @@ async def _begin_after_count(
             creator_telegram_id=user_id,
             player_count=count,
             scenario_code=scenario.code,
+            role_mode=role_mode,
         )
+
     except DomainError as exc:
         await _reply(message, callback, f"⚠️ {exc.message_fa}", edit=False)
         return

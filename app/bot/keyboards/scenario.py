@@ -12,9 +12,37 @@ from collections.abc import Sequence
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from app.bot.callbacks import ScenarioInfoCB, ScenarioPickCB
+from app.bot.callbacks import RoleModeCB, ScenarioInfoCB, ScenarioPickCB
+from app.models.enums import RoleMode
 from app.scenarios import ScenarioDefinition
 from app.utils.codes import to_persian_digits
+
+
+def build_role_mode_keyboard() -> InlineKeyboardMarkup:
+    """Let the creator choose how roles reach players (create-game step 2).
+
+    * "instant" → :class:`RoleMode.AUTO_ROLE_ASSIGNMENT`: each player is given a
+      seat number and a random role the moment they join — no waiting for the
+      lobby to fill and no manual "get role" tap.
+    * "manual" → :class:`RoleMode.MANUAL_ROLE_SELECTION`: the classic turn-based
+      flow where players draw their role one at a time once the lobby is full.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="⚡️ نقش فوری هنگام ورود",
+        callback_data=RoleModeCB(mode=RoleMode.AUTO_ROLE_ASSIGNMENT.value),
+    )
+    builder.button(
+        text="🔢 نوبتی (کلاسیک)",
+        callback_data=RoleModeCB(mode=RoleMode.MANUAL_ROLE_SELECTION.value),
+    )
+    builder.button(
+        text="↩️ انتخاب سناریوی دیگر",
+        callback_data=ScenarioPickCB(code="__back__"),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
 
 
 def build_scenario_picker_keyboard(

@@ -46,12 +46,14 @@ from app.bot.keyboards.reply import (
 )
 
 from app.bot.keyboards.scenario import (
+    build_role_mode_keyboard,
     build_scenario_count_keyboard,
     build_scenario_index_keyboard,
     build_scenario_overview_keyboard,
     build_scenario_page_keyboard,
     build_scenario_picker_keyboard,
 )
+
 
 
 
@@ -92,8 +94,10 @@ __all__ = [
     "BTN_SCENARIOS",
     "MAIN_MENU_BUTTONS",
 
+    "build_role_mode_keyboard",
     "build_scenario_count_keyboard",
     "build_scenario_index_keyboard",
+
     "build_scenario_overview_keyboard",
     "build_scenario_page_keyboard",
     "build_scenario_picker_keyboard",
